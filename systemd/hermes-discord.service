@@ -1,0 +1,16 @@
+[Unit]
+Description=Hermes Orchestrator Discord gateway
+After=network-online.target 9router.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{HERMES_USER}}
+Group={{HERMES_USER}}
+WorkingDirectory=/home/{{HERMES_USER}}/workspace
+ExecStart=/home/{{HERMES_USER}}/.local/bin/hermes gateway start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

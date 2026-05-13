@@ -1,0 +1,21 @@
+[Unit]
+Description=9Router AI gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=router9
+Group=router9
+WorkingDirectory=/opt/9router/app
+EnvironmentFile=/etc/9router/9router.env
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/9router /opt/9router /home/router9
+
+[Install]
+WantedBy=multi-user.target

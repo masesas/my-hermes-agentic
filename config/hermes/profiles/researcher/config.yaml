@@ -1,0 +1,47 @@
+agent:
+  name: hermes-researcher
+  max_turns: 80
+
+model:
+  provider: custom
+  default: ${HERMES_MODEL}
+  base_url: ${NINE_ROUTER_BASE_URL}
+  api_key: ${NINE_ROUTER_API_KEY}
+
+terminal:
+  backend: local
+  cwd: /home/hermes/workspace
+  timeout: 300
+  persistent_shell: true
+
+memory:
+  memory_enabled: true
+
+compression:
+  threshold: 0.45
+
+display:
+  streaming: true
+
+approvals:
+  mode: smart
+
+security:
+  redact_secrets: true
+  tirith_enabled: true
+
+checkpoints:
+  enabled: true
+  max_snapshots: 20
+
+timezone: Asia/Jakarta
+
+discord:
+  require_mention: true
+  auto_thread: true
+
+streaming:
+  enabled: true
+  transport: edit
+
+group_sessions_per_user: true
