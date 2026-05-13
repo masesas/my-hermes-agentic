@@ -9,6 +9,7 @@ require_env PUBLIC_BASE_URL NINE_ROUTER_INITIAL_PASSWORD NINE_ROUTER_JWT_SECRET 
 ROUTER_USER="router9"
 APP_DIR="/opt/9router/app"
 BIN_DIR="/opt/9router/bin"
+NODE_RUNTIME_DIR="/opt/9router/node"
 DATA_DIR="/var/lib/9router"
 ENV_DIR="/etc/9router"
 ENV_TARGET="${ENV_DIR}/9router.env"
@@ -95,6 +96,36 @@ resolve_npm_bin() {
   return 1
 }
 
+stage_node_runtime_if_needed() {
+  local node_bin="$1"
+  local npm_bin="$2"
+  local node_dir node_prefix staged_prefix version
+
+  if sudo -u "${ROUTER_USER}" test -x "${node_bin}" \
+    && sudo -u "${ROUTER_USER}" test -x "${npm_bin}"; then
+    return 0
+  fi
+
+  node_dir="$(dirname "${node_bin}")"
+  node_prefix="$(cd "${node_dir}/.." && pwd)"
+  version="$(${node_bin} -v | sed 's/^v//')"
+  staged_prefix="${NODE_RUNTIME_DIR}/node-v${version}"
+
+  log "Node runtime is not executable by ${ROUTER_USER}; staging ${node_prefix} to ${staged_prefix}."
+  rm -rf "${staged_prefix}"
+  install -d -m 0755 "${NODE_RUNTIME_DIR}"
+  cp -a "${node_prefix}" "${staged_prefix}"
+  chown -R root:root "${staged_prefix}"
+  chmod -R a+rX "${staged_prefix}"
+
+  NODE_BIN="${staged_prefix}/bin/node"
+  NPM_BIN="${staged_prefix}/bin/npm"
+  NODE_BIN_DIR="${staged_prefix}/bin"
+
+  [[ -x "${NODE_BIN}" ]] || die "Staged node is not executable: ${NODE_BIN}"
+  [[ -x "${NPM_BIN}" ]] || die "Staged npm is not executable: ${NPM_BIN}"
+}
+
 if ! id "${ROUTER_USER}" >/dev/null 2>&1; then
   log "Creating ${ROUTER_USER} system user..."
   useradd --system --create-home --home-dir /opt/9router --shell /usr/sbin/nologin "${ROUTER_USER}"
@@ -102,6 +133,7 @@ fi
 
 ensure_dir /opt/9router "${ROUTER_USER}:${ROUTER_USER}" 755
 ensure_dir "${BIN_DIR}" "${ROUTER_USER}:${ROUTER_USER}" 755
+ensure_dir "${NODE_RUNTIME_DIR}" root:root 755
 ensure_dir "${DATA_DIR}" "${ROUTER_USER}:${ROUTER_USER}" 750
 ensure_dir "${ENV_DIR}" root:root 755
 
@@ -117,9 +149,10 @@ log "Installing and building 9Router..."
 NODE_BIN="$(resolve_node_bin)" || die "No compatible Node.js found. Install Node.js >=20.9.0 or set NINE_ROUTER_NODE_BIN=/path/to/node in .env."
 NODE_BIN_DIR="$(dirname "${NODE_BIN}")"
 NPM_BIN="$(resolve_npm_bin "${NODE_BIN_DIR}")" || die "npm not found for Node.js at ${NODE_BIN}. Set NINE_ROUTER_NPM_BIN=/path/to/npm in .env."
+stage_node_runtime_if_needed "${NODE_BIN}" "${NPM_BIN}"
 
 log "Using Node: ${NODE_BIN} ($("${NODE_BIN}" -v))"
-log "Using npm: ${NPM_BIN} ($("${NPM_BIN}" -v))"
+log "Using npm: ${NPM_BIN} ($(env PATH="${NODE_BIN_DIR}:${PATH}" "${NPM_BIN}" -v))"
 
 cat > "${BIN_DIR}/npm-run" <<EOF
 #!/usr/bin/env bash
