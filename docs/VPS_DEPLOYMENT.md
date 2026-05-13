@@ -117,6 +117,8 @@ NINE_ROUTER_INITIAL_PASSWORD=<password-dashboard-yang-kuat>
 NINE_ROUTER_JWT_SECRET=<secret-random-panjang>
 NINE_ROUTER_API_KEY_SECRET=<secret-random-panjang>
 NINE_ROUTER_MACHINE_ID_SALT=<secret-random-panjang>
+NINE_ROUTER_NODE_BIN=
+NINE_ROUTER_NPM_BIN=
 
 NINE_ROUTER_API_KEY=
 NINE_ROUTER_BASE_URL=https://ai.example.com/v1
@@ -149,6 +151,7 @@ Catatan penting:
 - `HERMES_MODEL` harus sesuai alias/combo yang nanti dibuat di 9Router.
 - Gunakan `WEB_SERVER=nginx-direct` jika VPS sudah memakai Nginx sebagai load balancer/webserver.
 - Gunakan `WEB_SERVER=caddy` hanya jika ingin repo ini mengelola Caddy di port publik `80/443`.
+- Isi `NINE_ROUTER_NODE_BIN` dan `NINE_ROUTER_NPM_BIN` hanya jika setup NVM membuat skrip atau systemd salah memakai Node lama.
 - Jangan commit `.env` ke Git.
 
 ---
@@ -208,10 +211,32 @@ Skrip ini akan:
 - clone/update 9Router ke `/opt/9router/app`
 - install dependency Node.js
 - build aplikasi 9Router
+- memilih Node.js `>=20.9.0` secara eksplisit, termasuk dari NVM root atau user `agentic` jika tersedia
+- membuat wrapper `/opt/9router/bin/npm-run` dan `/opt/9router/bin/npm-start` agar build dan systemd tidak jatuh ke Node lama
 - membuat env runtime di `/etc/9router/9router.env`
 - menyiapkan data directory `/var/lib/9router`
 
 Pastikan tidak ada error build sebelum lanjut.
+
+Jika muncul error seperti:
+
+```text
+You are using Node.js 19.7.0. For Next.js, Node.js version ">=20.9.0" is required.
+```
+
+set path Node/NPM NVM secara eksplisit di `.env`, contoh:
+
+```bash
+NINE_ROUTER_NODE_BIN=/root/.nvm/versions/node/v24.0.0/bin/node
+NINE_ROUTER_NPM_BIN=/root/.nvm/versions/node/v24.0.0/bin/npm
+```
+
+Lalu jalankan ulang:
+
+```bash
+sudo ./scripts/20-install-9router.sh
+sudo ./scripts/50-setup-systemd.sh
+```
 
 ---
 
