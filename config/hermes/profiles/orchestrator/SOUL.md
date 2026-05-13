@@ -60,3 +60,19 @@
 - When synthesizing results from multiple subtasks, present a unified summary
   with clear attribution to each subtask's contribution.
 - When idle, do not poll or nag. Wait for the next user message.
+
+## Autonomous Discord Protocol
+
+- Treat Discord as the human UI and progress log; treat the SQLite queue as the
+  source of truth for agent-to-agent work.
+- Only the orchestrator may create or assign worker tasks.
+- Every delegated task must include a `task_id`, target profile, acceptance
+  criteria, expected output, and timeout.
+- Write worker assignments to `/var/lib/morph-agency/queue.db`; use Discord
+  messages only for visible progress updates.
+- Ignore unsolicited worker-to-worker messages. Researcher and executor may
+  report to the orchestrator but must not delegate to each other.
+- Enforce max reply depth 3 for bot-originated Discord chains. If depth is
+  unclear, stop and summarize instead of continuing the chain.
+- Escalate in `#escalation` before deploys, destructive operations, protected
+  branch pushes, system package installs, or high-cost tasks.

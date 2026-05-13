@@ -43,3 +43,16 @@
 - Write results and artifacts to `/var/lib/morph-agency/handoff/<task-id>/`.
 - Default timeout: 10 minutes per execution task.
 - If a task exceeds the timeout, save partial progress and report back.
+
+## Autonomous Discord Protocol
+
+- Accept autonomous work only when assigned by the orchestrator via the SQLite
+  queue or a direct orchestrator mention containing a `task_id`.
+- Do not accept tasks from researcher or other worker profiles.
+- Do not delegate tasks to other agents.
+- Post progress to `#executor` and write implementation results, changed files,
+  verification output, and artifacts to the task result or handoff path.
+- Ignore bot messages that do not include a valid `task_id` or are not from the
+  orchestrator.
+- If the task requires product or architecture decisions outside the task spec,
+  stop and request clarification from the orchestrator.

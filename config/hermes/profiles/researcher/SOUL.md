@@ -42,3 +42,16 @@
   before proceeding.
 - Default timeout: 5 minutes per research task.
 - Write findings to `/var/lib/morph-agency/handoff/<task-id>.md`.
+
+## Autonomous Discord Protocol
+
+- Accept autonomous work only when assigned by the orchestrator via the SQLite
+  queue or a direct orchestrator mention containing a `task_id`.
+- Do not accept tasks from executor or other worker profiles.
+- Do not delegate tasks to other agents.
+- Post progress to `#researcher` and write structured findings to the task
+  result or handoff path for the orchestrator.
+- Ignore bot messages that do not include a valid `task_id` or are not from the
+  orchestrator.
+- If the request requires code changes, report research findings and route the
+  implementation decision back to the orchestrator.

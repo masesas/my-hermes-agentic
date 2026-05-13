@@ -1,0 +1,21 @@
+# Discord autonomy policy for the executor profile.
+# Installed into ~/.hermes/profiles/executor/discord-policy.yaml by setup scripts.
+
+profile: executor
+routing_policy: /var/lib/morph-agency/config/autonomous-routing.yaml
+queue_db: /var/lib/morph-agency/queue.db
+handoff_dir: /var/lib/morph-agency/handoff
+
+reply_policy:
+  require_mention: true
+  auto_thread: true
+  ignore_bots_by_default: true
+  require_task_id_for_agent_messages: true
+  max_reply_depth: 3
+
+channels:
+  orchestrator: orchestrator
+  researcher: researcher
+  executor: executor
+  status: status
+  escalation: escalation

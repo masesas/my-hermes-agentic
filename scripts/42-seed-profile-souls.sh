@@ -27,6 +27,15 @@ for profile in "${PROFILES[@]}"; do
     log "No SOUL.md found at ${profile_config}/SOUL.md, skipping."
   fi
 
+  # ── discord-policy.yaml ─────────────────────────────────────────
+  if [[ -f "${profile_config}/discord-policy.yaml" ]]; then
+    install -o "${HERMES_USER}" -g "${HERMES_USER}" -m 640 \
+      "${profile_config}/discord-policy.yaml" "${profile_home}/discord-policy.yaml"
+    log "Installed discord-policy.yaml for ${profile}."
+  else
+    log "No discord-policy.yaml found at ${profile_config}/discord-policy.yaml, skipping."
+  fi
+
   # ── config.yaml ──────────────────────────────────────────────────
   if [[ -f "${profile_config}/config.yaml" ]]; then
     install -o "${HERMES_USER}" -g "${HERMES_USER}" -m 600 \
@@ -53,6 +62,7 @@ for profile in "${PROFILES[@]}"; do
     sed \
       -e "s|^NINE_ROUTER_API_KEY=.*|NINE_ROUTER_API_KEY=${NINE_ROUTER_API_KEY}|" \
       -e "s|^NINE_ROUTER_BASE_URL=.*|NINE_ROUTER_BASE_URL=${NINE_ROUTER_BASE_URL}|" \
+      -e "s|^HERMES_MODEL=.*|HERMES_MODEL=${HERMES_MODEL}|" \
       -e "s|^DISCORD_BOT_TOKEN=.*|DISCORD_BOT_TOKEN=${discord_token}|" \
       -e "s|^DISCORD_ALLOWED_USERS=.*|DISCORD_ALLOWED_USERS=${DISCORD_ALLOWED_USERS:-}|" \
       -e "s|^HERMES_AGENT_NAME=.*|HERMES_AGENT_NAME=hermes-${profile}|" \
@@ -70,10 +80,21 @@ DISCORD_BOT_TOKEN=${discord_token}
 HERMES_AGENT_NAME=hermes-${profile}
 HERMES_PROFILE=${profile}
 MORPH_AGENCY_DIR=/var/lib/morph-agency
+MORPH_AUTONOMOUS_MODE=orchestrated
+MORPH_ROUTING_POLICY=/var/lib/morph-agency/config/autonomous-routing.yaml
+MORPH_DISCORD_POLICY=${profile_home}/discord-policy.yaml
 EOF
     chown "${HERMES_USER}:${HERMES_USER}" "${profile_home}/.env"
     chmod 600 "${profile_home}/.env"
   fi
+  grep -q '^MORPH_AUTONOMOUS_MODE=' "${profile_home}/.env" \
+    || echo 'MORPH_AUTONOMOUS_MODE=orchestrated' >> "${profile_home}/.env"
+  grep -q '^MORPH_ROUTING_POLICY=' "${profile_home}/.env" \
+    || echo 'MORPH_ROUTING_POLICY=/var/lib/morph-agency/config/autonomous-routing.yaml' >> "${profile_home}/.env"
+  grep -q '^MORPH_DISCORD_POLICY=' "${profile_home}/.env" \
+    || echo "MORPH_DISCORD_POLICY=${profile_home}/discord-policy.yaml" >> "${profile_home}/.env"
+  chown "${HERMES_USER}:${HERMES_USER}" "${profile_home}/.env"
+  chmod 600 "${profile_home}/.env"
   log "Installed .env for ${profile}."
 done
 

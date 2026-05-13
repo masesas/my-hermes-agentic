@@ -80,6 +80,14 @@ if [[ -f "${QUEUE_DB}" ]]; then
     check_fail "queue.db profile_health table inaccessible"
   fi
 
+  for table in task_events task_results agent_messages; do
+    if sqlite3 "${QUEUE_DB}" "SELECT count(*) FROM ${table};" >/dev/null 2>&1; then
+      check_pass "queue.db ${table} table accessible"
+    else
+      check_warn "queue.db ${table} table missing (run 44-configure-agent-routing.sh for autonomous mode)"
+    fi
+  done
+
   db_owner="$(stat -c '%U:%G' "${QUEUE_DB}" 2>/dev/null || stat -f '%Su:%Sg' "${QUEUE_DB}" 2>/dev/null)"
   if [[ "${db_owner}" == "${HERMES_USER}:${HERMES_USER}" ]]; then
     check_pass "queue.db ownership correct (${db_owner})"
@@ -93,11 +101,30 @@ fi
 # ── Shared directories ─────────────────────────────────────────────
 
 log "Checking shared directories..."
-for dir in "${AGENCY_DIR}" "${AGENCY_DIR}/handoff" "${AGENCY_DIR}/skills/common"; do
+for dir in "${AGENCY_DIR}" "${AGENCY_DIR}/handoff" "${AGENCY_DIR}/skills/common" "${AGENCY_DIR}/config"; do
   if [[ -d "${dir}" ]]; then
     check_pass "Directory exists: ${dir}"
   else
-    check_fail "Directory missing: ${dir}"
+    if [[ "${dir}" == "${AGENCY_DIR}/config" ]]; then
+      check_warn "Directory missing: ${dir} (run 44-configure-agent-routing.sh for autonomous mode)"
+    else
+      check_fail "Directory missing: ${dir}"
+    fi
+  fi
+done
+
+if [[ -f "${AGENCY_DIR}/config/autonomous-routing.yaml" ]]; then
+  check_pass "Autonomous routing policy installed"
+else
+  check_warn "Autonomous routing policy missing (run 44-configure-agent-routing.sh)"
+fi
+
+for profile in "${PROFILES[@]}"; do
+  policy_file="/home/${HERMES_USER}/.hermes/profiles/${profile}/discord-policy.yaml"
+  if [[ -f "${policy_file}" ]]; then
+    check_pass "Profile '${profile}' Discord policy present"
+  else
+    check_warn "Profile '${profile}' Discord policy missing (run 44-configure-agent-routing.sh)"
   fi
 done
 

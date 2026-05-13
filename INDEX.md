@@ -89,6 +89,9 @@ Scripts are numbered for sequential execution during initial VPS setup:
         |
 40-setup-hermes-*        Configure Hermes profiles and SOUL.md
         |
+44-configure-agent-routing
+                         Install autonomous routing and anti-loop policy
+        |
 50-setup-systemd         Install systemd service units
         |
 55-setup-systemd-*       Per-profile systemd units (Phase 1)

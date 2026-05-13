@@ -5,6 +5,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 require_root
 load_env
 
+WEB_SERVER="${WEB_SERVER:-caddy}"
+
 log "Installing base packages..."
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -16,6 +18,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   ufw \
   build-essential \
   ripgrep \
+  sqlite3 \
   unzip
 
 if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | sed 's/^v//' | cut -d. -f1)" -lt 20 ]]; then
@@ -31,7 +34,11 @@ else
   log "Node.js already installed: $(node -v)"
 fi
 
-if ! command -v caddy >/dev/null 2>&1; then
+if [[ "${WEB_SERVER}" == "nginx-direct" ]]; then
+  log "WEB_SERVER=nginx-direct detected; skipping Caddy installation."
+elif [[ "${WEB_SERVER}" != "caddy" ]]; then
+  die "Unsupported WEB_SERVER=${WEB_SERVER}. Supported values: caddy, nginx-direct."
+elif ! command -v caddy >/dev/null 2>&1; then
   log "Installing Caddy..."
   apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
@@ -51,4 +58,3 @@ ufw allow 443/tcp
 ufw --force enable
 
 log "System dependencies ready."
-

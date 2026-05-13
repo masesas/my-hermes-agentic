@@ -6,6 +6,21 @@ require_root
 load_env
 require_env PUBLIC_DOMAIN ADMIN_EMAIL
 
+WEB_SERVER="${WEB_SERVER:-caddy}"
+
+if [[ "${WEB_SERVER}" == "nginx-direct" ]]; then
+  log "WEB_SERVER=nginx-direct detected; skipping Caddy setup."
+  log "Configure Nginx to proxy https://${PUBLIC_DOMAIN} directly to http://127.0.0.1:20128."
+  if systemctl list-unit-files caddy.service >/dev/null 2>&1; then
+    log "Caddy service exists; leaving its current state unchanged."
+  fi
+  exit 0
+fi
+
+if [[ "${WEB_SERVER}" != "caddy" ]]; then
+  die "Unsupported WEB_SERVER=${WEB_SERVER}. Supported values: caddy, nginx-direct."
+fi
+
 tmp_file="$(mktemp)"
 sed \
   -e "s/{{PUBLIC_DOMAIN}}/${PUBLIC_DOMAIN}/g" \
@@ -28,4 +43,3 @@ systemctl reload caddy || systemctl restart caddy
 
 log "Caddy configured for https://${PUBLIC_DOMAIN}."
 log "All profiles route through 9Router at 127.0.0.1:20128 — no per-profile Caddy blocks needed."
-

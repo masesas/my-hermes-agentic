@@ -61,6 +61,46 @@ CREATE TABLE IF NOT EXISTS profile_health (
     status TEXT DEFAULT 'closed',
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+CREATE TABLE IF NOT EXISTS task_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    profile TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    metadata TEXT,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY(task_id) REFERENCES tasks(id)
+);
+CREATE INDEX IF NOT EXISTS idx_task_events_task_id ON task_events(task_id, created_at);
+
+CREATE TABLE IF NOT EXISTS task_results (
+    task_id TEXT PRIMARY KEY,
+    profile TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('succeeded', 'failed', 'blocked', 'partial')),
+    summary TEXT NOT NULL,
+    artifact_path TEXT,
+    metadata TEXT,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY(task_id) REFERENCES tasks(id)
+);
+
+CREATE TABLE IF NOT EXISTS agent_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT,
+    from_profile TEXT NOT NULL,
+    to_profile TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    intent TEXT NOT NULL,
+    depth INTEGER NOT NULL DEFAULT 0,
+    discord_message_id TEXT,
+    content TEXT NOT NULL,
+    processed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_target ON agent_messages(to_profile, processed, created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_task ON agent_messages(task_id, created_at);
 SQL
   chown "${HERMES_USER}:${HERMES_USER}" "${QUEUE_DB}"
   chmod 640 "${QUEUE_DB}"
@@ -71,6 +111,47 @@ else
     | grep -q tasks || die "queue.db exists but missing 'tasks' table."
   sqlite3 "${QUEUE_DB}" "SELECT name FROM sqlite_master WHERE type='table' AND name='profile_health';" \
     | grep -q profile_health || die "queue.db exists but missing 'profile_health' table."
+  sqlite3 "${QUEUE_DB}" <<'SQL'
+CREATE TABLE IF NOT EXISTS task_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    profile TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    metadata TEXT,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY(task_id) REFERENCES tasks(id)
+);
+CREATE INDEX IF NOT EXISTS idx_task_events_task_id ON task_events(task_id, created_at);
+
+CREATE TABLE IF NOT EXISTS task_results (
+    task_id TEXT PRIMARY KEY,
+    profile TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('succeeded', 'failed', 'blocked', 'partial')),
+    summary TEXT NOT NULL,
+    artifact_path TEXT,
+    metadata TEXT,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY(task_id) REFERENCES tasks(id)
+);
+
+CREATE TABLE IF NOT EXISTS agent_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT,
+    from_profile TEXT NOT NULL,
+    to_profile TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    intent TEXT NOT NULL,
+    depth INTEGER NOT NULL DEFAULT 0,
+    discord_message_id TEXT,
+    content TEXT NOT NULL,
+    processed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_target ON agent_messages(to_profile, processed, created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_task ON agent_messages(task_id, created_at);
+SQL
   log "Schema verified."
 fi
 

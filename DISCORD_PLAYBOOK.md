@@ -2,6 +2,8 @@
 
 How to interact with the Morph AI Software Agency via Discord.
 
+For server/channel/bot setup instructions, see `docs/DISCORD_SETUP.md`.
+
 ---
 
 ## Channel Structure

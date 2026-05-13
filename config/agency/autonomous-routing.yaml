@@ -1,0 +1,96 @@
+# Morph AI Agency autonomous routing policy.
+# This file is copied to /var/lib/morph-agency/config/autonomous-routing.yaml
+# by scripts/44-configure-agent-routing.sh.
+
+version: 1
+mode: orchestrated
+queue_db: /var/lib/morph-agency/queue.db
+handoff_dir: /var/lib/morph-agency/handoff
+
+loop_guard:
+  max_reply_depth: 3
+  require_task_id_for_agent_messages: true
+  ignore_unassigned_bot_messages: true
+  orchestrator_is_only_task_assigner: true
+  workers_may_not_delegate: true
+
+profiles:
+  orchestrator:
+    role: task_router
+    discord_channel: orchestrator
+    lifecycle: always_on
+    can_receive_from:
+      - human
+    can_assign_to:
+      - researcher
+      - executor
+    can_report_to:
+      - human
+    queue_actions:
+      - create_task
+      - read_task_result
+      - retry_task
+      - cancel_task
+
+  researcher:
+    role: research_worker
+    discord_channel: researcher
+    lifecycle: spawn_on_demand
+    can_receive_from:
+      - orchestrator
+    can_assign_to: []
+    can_report_to:
+      - orchestrator
+    queue_actions:
+      - claim_assigned_task
+      - append_task_event
+      - write_task_result
+
+  executor:
+    role: execution_worker
+    discord_channel: executor
+    lifecycle: spawn_on_demand
+    can_receive_from:
+      - orchestrator
+    can_assign_to: []
+    can_report_to:
+      - orchestrator
+    queue_actions:
+      - claim_assigned_task
+      - append_task_event
+      - write_task_result
+
+discord:
+  default_require_mention: true
+  auto_thread: true
+  ignore_bots_by_default: true
+  allowed_bot_senders:
+    researcher:
+      - MorphOrchestrator
+    executor:
+      - MorphOrchestrator
+    orchestrator:
+      - MorphResearcher
+      - MorphExecutor
+  progress_channels:
+    status: status
+    escalation: escalation
+
+message_contract:
+  agent_to_agent:
+    required_fields:
+      - task_id
+      - from_profile
+      - to_profile
+      - intent
+    allowed_intents:
+      - task_assignment
+      - progress_update
+      - clarification_request
+      - task_result
+      - error_report
+  worker_result_statuses:
+    - succeeded
+    - failed
+    - blocked
+    - partial
