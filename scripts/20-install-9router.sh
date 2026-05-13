@@ -30,8 +30,12 @@ else
 fi
 
 log "Installing and building 9Router..."
-sudo -u "${ROUTER_USER}" npm --prefix "${APP_DIR}" install
-sudo -u "${ROUTER_USER}" npm --prefix "${APP_DIR}" run build
+NODE_PATH=$(command -v node)
+NPM_PATH=$(command -v npm)
+
+# Ensure we use the absolute path to node/npm to bypass sudo PATH issues
+sudo -u "${ROUTER_USER}" "${NPM_PATH}" --prefix "${APP_DIR}" install
+sudo -u "${ROUTER_USER}" "${NPM_PATH}" --prefix "${APP_DIR}" run build
 
 cat > "${ENV_TARGET}" <<EOF
 NODE_ENV=production
