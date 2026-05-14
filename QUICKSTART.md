@@ -75,10 +75,7 @@ ssh agentic@203.175.10.92 -p 22172 "
   done
 "
 
-# 4. Re-patch systemd units
-ssh agentic@203.175.10.92 -p 22172 "sudo bash /tmp/patch-units.sh"
-
-# 5. Restart gateways (see above)
+# 4. Restart gateways (see above)
 ```
 
 ## Access 9Router Dashboard
@@ -106,13 +103,12 @@ ssh agentic@203.175.10.92 -p 22172 "
   cat /home/hermes/.config/systemd/user/hermes-gateway-orchestrator.service
 "
 
-# Check if env vars are injected
+# Check literal model config
 ssh agentic@203.175.10.92 -p 22172 "
-  grep HERMES_MODEL /home/hermes/.config/systemd/user/hermes-gateway-orchestrator.service
+  grep -A4 '^model:' /home/hermes/.hermes/profiles/orchestrator/config.yaml
 "
 
-# If missing, re-run patch script
-ssh agentic@203.175.10.92 -p 22172 "sudo bash /tmp/patch-units.sh"
+# Expected: default: morph-orchestrator, not ${HERMES_MODEL}
 ```
 
 ### Discord bot not responding
@@ -150,7 +146,6 @@ curl -s https://my-hermes.otomotives.com/v1/models | jq '.data[] | select(.id | 
 | `/home/hermes/.hermes/profiles/<profile>/.env` | Profile environment vars |
 | `/home/hermes/.hermes/profiles/<profile>/config.yaml` | Profile configuration |
 | `/home/hermes/.config/systemd/user/hermes-gateway-<profile>.service` | Systemd unit |
-| `/tmp/patch-units.sh` | Script to inject env vars into systemd units |
 | `/var/lib/morph-agency/queue.db` | SQLite task queue |
 | `/etc/nginx/sites-enabled/my-hermes.otomotives.com.conf` | Nginx config |
 

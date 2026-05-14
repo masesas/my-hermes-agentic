@@ -8,11 +8,11 @@ Master registry of all Hermes agent profiles in the Morph AI Software Agency.
 
 | Profile | Role | Capability Summary | LLM Combo | Discord Channel | Discord Bot | Lifecycle | Status |
 |---------|------|--------------------|-----------|-----------------|-------------|-----------|--------|
-| `orchestrator` | Task Router & Planner | Decompose user requests, delegate to specialists, synthesize results, manage task queue | `combo:premium` | `#orchestrator` | `MorphOrchestrator` | always-on | **active** |
-| `researcher` | Web Research & Analysis | Web search, doc lookup, technology scouting, competitive analysis, structured reports | `combo:balanced` | `#researcher` | `MorphResearcher` | spawn-on-demand | **active** |
-| `executor` | Code Generation & Ops | Code gen, file ops, git workflow, build/test execution, infrastructure scripts | `combo:budget` | `#executor` | `MorphExecutor` | spawn-on-demand | **active** |
-| `reviewer` | Code Review & QA | Code quality analysis, security audit, test coverage review, PR feedback | `combo:premium` | `#reviewer` | `MorphReviewer` | spawn-on-demand | planned |
-| `devops` | Infrastructure & Deployment | System ops, deployment automation, monitoring setup, security hardening | `combo:balanced` | `#devops` | `MorphDevOps` | spawn-on-demand | planned |
+| `orchestrator` | Task Router & Planner | Decompose user requests, delegate to specialists, synthesize results, manage task queue | `morph-orchestrator` | `#orchestrator` | `MorphOrchestrator` | always-on | **active** |
+| `researcher` | Web Research & Analysis | Web search, doc lookup, technology scouting, competitive analysis, structured reports | `morph-researcher` | `#researcher` | `MorphResearcher` | spawn-on-demand | **active** |
+| `executor` | Code Generation & Ops | Code gen, file ops, git workflow, build/test execution, infrastructure scripts | `morph-executor` | `#executor` | `MorphExecutor` | spawn-on-demand | **active** |
+| `reviewer` | Code Review & QA | Code quality analysis, security audit, test coverage review, PR feedback | `morph-reviewer` | `#reviewer` | `MorphReviewer` | spawn-on-demand | planned |
+| `devops` | Infrastructure & Deployment | System ops, deployment automation, monitoring setup, security hardening | `morph-devops` | `#devops` | `MorphDevOps` | spawn-on-demand | planned |
 | `writer` | Documentation & Content | Technical writing, README generation, API docs, changelog, blog drafts | TBD | `#writer` | `MorphWriter` | spawn-on-demand | candidate |
 | `monitor` | Observability & Alerts | Health checks, cost tracking, uptime monitoring, anomaly detection | TBD | `#status` | `MorphMonitor` | cron-based | candidate |
 
@@ -25,8 +25,8 @@ Master registry of all Hermes agent profiles in the Morph AI Software Agency.
 | Attribute | Value |
 |-----------|-------|
 | **Profile path** | `~/.hermes/profiles/orchestrator/` |
-| **systemd unit** | `hermes-orchestrator-gateway.service` |
-| **LLM combo** | `combo:premium` (Claude Sonnet 4.6 > GPT-4o > Gemini 2.5 Pro) |
+| **systemd unit** | `hermes-gateway-orchestrator.service` (user-level) |
+| **LLM combo** | `morph-orchestrator` (Claude Sonnet 4.6 > GPT-4o > Gemini 2.5 Pro) |
 | **Max turns** | 160 |
 | **Max concurrent children** | 3 |
 | **Max spawn depth** | 1 |
@@ -58,8 +58,8 @@ Master registry of all Hermes agent profiles in the Morph AI Software Agency.
 | Attribute | Value |
 |-----------|-------|
 | **Profile path** | `~/.hermes/profiles/researcher/` |
-| **systemd unit** | `hermes-researcher-gateway.service` |
-| **LLM combo** | `combo:balanced` (Gemini 2.5 Flash > Claude Haiku 4.5 > GPT-4o-mini) |
+| **systemd unit** | `hermes-gateway-researcher.service` (user-level) |
+| **LLM combo** | `morph-researcher` (Gemini 2.5 Flash > Claude Haiku 4.5 > GPT-4o-mini) |
 | **Max turns** | 80 |
 | **Max concurrent children** | 2 |
 | **Max spawn depth** | 1 |
@@ -92,8 +92,8 @@ Master registry of all Hermes agent profiles in the Morph AI Software Agency.
 | Attribute | Value |
 |-----------|-------|
 | **Profile path** | `~/.hermes/profiles/executor/` |
-| **systemd unit** | `hermes-executor-gateway.service` |
-| **LLM combo** | `combo:budget` (Claude Haiku 4.5 > Gemini 2.5 Flash > DeepSeek V3) |
+| **systemd unit** | `hermes-gateway-executor.service` (user-level) |
+| **LLM combo** | `morph-executor` (Claude Haiku 4.5 > Gemini 2.5 Flash > DeepSeek V3) |
 | **Max turns** | 80 |
 | **Max concurrent children** | 2 |
 | **Max spawn depth** | 1 |
@@ -130,7 +130,7 @@ Master registry of all Hermes agent profiles in the Morph AI Software Agency.
 
 | Attribute | Value |
 |-----------|-------|
-| **LLM combo** | `combo:premium` |
+| **LLM combo** | `morph-reviewer` |
 | **Lifecycle** | spawn-on-demand |
 | **Discord channel** | `#reviewer` |
 
@@ -153,7 +153,7 @@ Master registry of all Hermes agent profiles in the Morph AI Software Agency.
 
 | Attribute | Value |
 |-----------|-------|
-| **LLM combo** | `combo:balanced` |
+| **LLM combo** | `morph-devops` |
 | **Lifecycle** | spawn-on-demand |
 | **Discord channel** | `#devops` |
 

@@ -20,13 +20,18 @@ ai-agent/
 │       └── profiles/               # Per-agent profile configs
 │           ├── orchestrator/
 │           │   ├── SOUL.md          # Orchestrator identity & rules
-│           │   └── config.yaml      # LLM combo:premium, delegation enabled
+│           │   └── config.yaml      # LLM combo morph-orchestrator, delegation enabled
 │           ├── researcher/
 │           │   ├── SOUL.md          # Researcher identity & rules
-│           │   └── config.yaml      # LLM combo:balanced, no delegation
+│           │   └── config.yaml      # LLM combo morph-researcher, no delegation
 │           └── executor/
-│               └── SOUL.md          # Executor identity & rules
+│               ├── SOUL.md          # Executor identity & rules
+│               └── config.yaml      # LLM combo morph-executor
 ├── docs/                           # Extended documentation
+│   ├── ADDING_NEW_AGENT.md         # Operational runbook for adding profiles
+│   ├── VPS_DEPLOYMENT.md           # VPS deployment guide
+│   ├── DISCORD_SETUP.md            # Discord bot/channel setup
+│   ├── AUTONOMOUS_DISCORD_AGENTS.md # Autonomous Discord behavior
 │   └── agent/
 │       └── begin.md                # Original setup prompt (v2)
 ├── scripts/                        # Idempotent setup & ops scripts
@@ -36,12 +41,15 @@ ai-agent/
 │   ├── 20-install-9router.sh       # 9Router LLM gateway installation
 │   ├── 30-install-hermes.sh        # Hermes Agent installation
 │   ├── 40-setup-hermes-orchestrator.sh  # Single orchestrator profile setup
-│   ├── 50-setup-systemd.sh         # systemd unit installation
-│   ├── 60-setup-caddy.sh           # Caddy reverse proxy setup
+│   ├── 45-create-agent-profile.sh  # Interactive new agent profile generator
+│   ├── 50-setup-systemd.sh         # 9Router/system service installation
+│   ├── 55-setup-systemd-per-profile.sh # Hermes user-level gateway services
+│   ├── 60-setup-caddy.sh           # Caddy reverse proxy setup when WEB_SERVER=caddy
+│   ├── 65-setup-nginx-direct.sh    # Nginx direct reverse proxy setup
 │   └── 90-doctor.sh                # Health check & diagnostics
 ├── systemd/                        # systemd service templates
 │   ├── 9router.service             # 9Router service unit
-│   └── hermes-discord.service      # Hermes Discord gateway unit
+│   └── 9router.service             # 9Router service unit
 ├── .env.example                    # Environment variable template
 ├── .env                            # Actual secrets (gitignored)
 ├── .gitignore                      # Git ignore rules
@@ -68,6 +76,7 @@ ai-agent/
 | `.env` | Runtime secrets. Bot tokens, API keys, domain config. Never committed. |
 | `ARCHITECTURE.md` | Canonical architecture reference. Mermaid diagrams, memory budget, task queue schema, orchestration patterns, failure handling, roadmap. |
 | `AGENT_REGISTRY.md` | Master list of all agent profiles with capabilities, LLM assignments, and lifecycle status. |
+| `docs/ADDING_NEW_AGENT.md` | Step-by-step operational runbook for adding a new Hermes/Discord/9Router agent. |
 
 ---
 
@@ -92,11 +101,14 @@ Scripts are numbered for sequential execution during initial VPS setup:
 44-configure-agent-routing
                          Install autonomous routing and anti-loop policy
         |
-50-setup-systemd         Install systemd service units
+45-create-agent-profile  Optional interactive generator for additional agents
         |
-55-setup-systemd-*       Per-profile systemd units (Phase 1)
+50-setup-systemd         Install 9Router/system services
         |
-60-setup-caddy           Configure Caddy reverse proxy
+55-setup-systemd-*       Per-profile Hermes user-level systemd units
+        |
+60-setup-caddy           Configure Caddy only if WEB_SERVER=caddy
+65-setup-nginx-direct    Configure Nginx if WEB_SERVER=nginx-direct
         |
 90-doctor                Run health checks on all components
 ```
@@ -111,20 +123,19 @@ Scripts are numbered for sequential execution during initial VPS setup:
  ├── Provides: PUBLIC_DOMAIN, NINE_ROUTER_*, DISCORD_BOT_TOKEN, HERMES_*
  │
  └──> config/hermes/profiles/*/config.yaml
-       ├── Uses: ${NINE_ROUTER_BASE_URL}, ${NINE_ROUTER_API_KEY}
-       ├── Sets: LLM combo, delegation limits, agent behavior
+       ├── Uses literal 9Router endpoint and `morph-<profile>` combo names
+       ├── Sets delegation limits, agent behavior, Discord gateway config
        │
-       └──> 9Router combos (premium, balanced, budget)
-             ├── Defined in: 9Router db.json on VPS
-             └── Routes to: Anthropic, OpenAI, Google, DeepSeek
+       └──> 9Router combos (`morph-orchestrator`, `morph-researcher`, `morph-executor`)
+             ├── Defined in 9Router dashboard on VPS
+             └── Routes to Anthropic, OpenAI, Google, DeepSeek, etc.
 
-config/caddy/Caddyfile
- ├── Uses: {{PUBLIC_DOMAIN}}, {{ADMIN_EMAIL}} (template vars)
- └── Routes: all traffic to 9Router (127.0.0.1:20128)
+config/nginx/9router-nginx-direct.conf
+ ├── Used when WEB_SERVER=nginx-direct
+ └── Routes HTTPS traffic to 9Router (127.0.0.1:20128)
 
-systemd/hermes-discord.service
- ├── Uses: {{HERMES_USER}} (template var)
- └── Runs: hermes gateway start
+/home/hermes/.config/systemd/user/hermes-gateway-<profile>.service
+ └── Runs: hermes --profile <profile> gateway run
 
 /var/lib/morph-agency/queue.db
  ├── Shared by: all Hermes profiles
@@ -142,6 +153,6 @@ systemd/hermes-discord.service
 | `/var/lib/morph-agency/handoff/` | Large payload exchange between profiles |
 | `/var/lib/morph-agency/skills/common/` | Shared read-only skills |
 | `/opt/9router/` | 9Router installation |
-| `/etc/caddy/Caddyfile` | Active Caddy config |
-| `/etc/systemd/system/hermes-*-gateway.service` | Active systemd units |
+| `/etc/nginx/sites-enabled/my-hermes.otomotives.com.conf` | Active Nginx direct reverse proxy config |
+| `/home/hermes/.config/systemd/user/hermes-gateway-*.service` | Active Hermes user-level gateway units |
 | `/home/hermes/workspace/` | Default working directory for all profiles |

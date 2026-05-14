@@ -20,8 +20,8 @@ Multi-agent autonomous software agency built on Hermes Agent + 9Router + Discord
 | **Hermes Agent** | Autonomous agent core with profiles, memory, skills, gateway | `~/.hermes/profiles/<name>/` |
 | **9Router** | Multi-provider LLM gateway with cost-optimization fallback | `/opt/9router/` |
 | **Discord** | Human-agent interface. One bot per profile, one channel per agent. | Discord API |
-| **Caddy** | Reverse proxy with auto-TLS | `/etc/caddy/Caddyfile` |
-| **systemd** | Service management. One unit per profile gateway. | `/etc/systemd/system/hermes-*-gateway.service` |
+| **Nginx** | Primary public reverse proxy for nginx-direct mode | `/etc/nginx/sites-enabled/my-hermes.otomotives.com.conf` |
+| **systemd** | Service management. User-level gateway units per profile. | `/home/hermes/.config/systemd/user/hermes-gateway-*.service` |
 | **SQLite** | Task queue for inter-profile communication | `/var/lib/morph-agency/queue.db` |
 | **Bash** | Setup scripts (idempotent, `set -euo pipefail`, `source lib.sh`) | `scripts/` |
 
@@ -36,7 +36,7 @@ See `ARCHITECTURE.md` for full diagrams and decisions. Key points:
 - **Orchestrator** receives user requests via Discord, decomposes into tasks, delegates to specialist profiles via SQLite queue
 - **Researcher** handles web search, doc lookup, technology scouting
 - **Executor** handles code generation, file ops, git workflow, build/test
-- All profiles share a single 9Router instance with named combos: `combo:premium`, `combo:balanced`, `combo:budget`
+- All profiles share a single 9Router instance with named combos using `morph-<profile>` (for example `morph-orchestrator`)
 - Inter-profile communication: SQLite task queue (primary) + filesystem handoff (large payloads)
 - Memory per profile is fully isolated (MEMORY.md, USER.md, sessions)
 - Shared skills are read-only at `/var/lib/morph-agency/skills/common/`
@@ -47,9 +47,9 @@ See `ARCHITECTURE.md` for full diagrams and decisions. Key points:
 
 | Profile | Role | LLM Combo | Discord | Lifecycle |
 |---------|------|-----------|---------|-----------|
-| `orchestrator` | Task router, planner, synthesis | `combo:premium` | `#orchestrator` | always-on |
-| `researcher` | Web research, analysis | `combo:balanced` | `#researcher` | spawn-on-demand |
-| `executor` | Code gen, build/test, git ops | `combo:budget` | `#executor` | spawn-on-demand |
+| `orchestrator` | Task router, planner, synthesis | `morph-orchestrator` | `#orchestrator` | always-on |
+| `researcher` | Web research, analysis | `morph-researcher` | `#researcher` | spawn-on-demand |
+| `executor` | Code gen, build/test, git ops | `morph-executor` | `#executor` | spawn-on-demand |
 
 See `AGENT_REGISTRY.md` for the full roster including planned profiles.
 
@@ -62,7 +62,7 @@ See `AGENT_REGISTRY.md` for the full roster including planned profiles.
 ```
 config/hermes/profiles/<name>/SOUL.md       Agent persona definition
 config/hermes/profiles/<name>/config.yaml   Agent runtime config
-config/caddy/Caddyfile                      Caddy reverse proxy template
+config/nginx/9router-nginx-direct.conf       Nginx reverse proxy template for nginx-direct
 scripts/                                    Idempotent setup scripts (00-90)
 scripts/lib.sh                              Shared bash library
 systemd/                                    systemd unit templates
@@ -77,8 +77,8 @@ systemd/                                    systemd unit templates
 /var/lib/morph-agency/handoff/              Large payload exchange
 /var/lib/morph-agency/skills/common/        Shared read-only skills
 /opt/9router/                               9Router installation
-/etc/caddy/Caddyfile                        Active Caddy config
-/etc/systemd/system/hermes-*-gateway.service  Active systemd units
+/etc/nginx/sites-enabled/my-hermes.otomotives.com.conf  Active Nginx config
+/home/hermes/.config/systemd/user/hermes-gateway-*.service  Active user-level gateway units
 /home/hermes/workspace/                     Default working directory
 ```
 
@@ -90,7 +90,7 @@ systemd/                                    systemd unit templates
 
 ```bash
 hermes profile create <name>              # Create a new profile
-hermes -p <name> gateway start            # Start Discord gateway for profile
+hermes --profile <name> gateway install      # Install user-level gateway service
 hermes -p <name> chat                     # Interactive CLI session
 hermes -p <name> -z "prompt"              # One-shot execution
 ```
@@ -98,9 +98,9 @@ hermes -p <name> -z "prompt"              # One-shot execution
 ### systemd
 
 ```bash
-sudo systemctl status hermes-orchestrator-gateway
-sudo systemctl restart hermes-orchestrator-gateway
-sudo journalctl -u hermes-orchestrator-gateway -f
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus systemctl --user status hermes-gateway-orchestrator
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus systemctl --user restart hermes-gateway-orchestrator
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus journalctl --user -u hermes-gateway-orchestrator -f
 sudo systemctl status 9router
 ```
 
@@ -127,7 +127,7 @@ sudo ./90-doctor.sh          # Health check all components
 ### Naming
 
 - Profile names: lowercase, single word (`orchestrator`, `researcher`, `executor`)
-- systemd units: `hermes-<profile>-gateway.service`
+- systemd units: `hermes-gateway-<profile>.service` (user-level)
 - Discord bots: `Morph<Profile>` (PascalCase)
 - Discord channels: `#<profile>` (lowercase)
 - Scripts: `XX-<action>.sh` (numbered, kebab-case)
@@ -172,4 +172,5 @@ sudo ./90-doctor.sh          # Health check all components
 | `DISCORD_PLAYBOOK.md` | Discord channel structure, commands, escalation, output formats |
 | `PROJECT_RULES.md` | Coding standards, naming, commit conventions, security rules |
 | `WORKFLOW.md` | Adding/modifying profiles, testing, git flow, onboarding checklist |
+| `docs/ADDING_NEW_AGENT.md` | Current VPS-safe step-by-step guide for adding a new agent profile |
 | `INDEX.md` | File map, script execution order, config relationships |

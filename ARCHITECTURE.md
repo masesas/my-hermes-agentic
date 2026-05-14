@@ -23,7 +23,7 @@ graph TB
         subgraph AlwaysOn["Always-On Services (~400MB)"]
             CADDY[Caddy Reverse Proxy<br/>~30MB]
             ROUTER[9Router LLM Gateway<br/>~150MB]
-            ORCH_GW[Orchestrator Gateway<br/>hermes-orchestrator-gateway.service<br/>~200MB]
+            ORCH_GW[Orchestrator Gateway<br/>hermes-gateway-orchestrator.service<br/>~200MB]
         end
 
         subgraph SpawnOnDemand["Spawn-on-Demand (~100MB each)"]
@@ -103,15 +103,15 @@ graph TB
 
 ## Cost Strategy via 9Router
 
-Single 9Router instance with named combos per role. Each profile's `config.yaml` specifies its combo name in the `model.default` field.
+Single 9Router instance with named combos per profile. Each profile's `config.yaml` specifies a literal combo name in the `model.default` field using the `morph-<profile>` convention.
 
 | Profile | Combo Name | Primary Model | Fallback Chain | Cost Tier | Reasoning |
 |---------|-----------|---------------|----------------|-----------|-----------|
-| orchestrator | `combo:premium` | Claude Sonnet 4.6 | GPT-4o > Gemini 2.5 Pro | High | Strategic decisions, task decomposition, synthesis — needs strong reasoning |
-| researcher | `combo:balanced` | Gemini 2.5 Flash | Claude Haiku 4.5 > GPT-4o-mini | Medium | Volume research queries, web-capable, cost-efficient |
-| executor | `combo:budget` | Claude Haiku 4.5 | Gemini 2.5 Flash > DeepSeek V3 | Low | High-volume code gen, structured output, cost-optimized |
-| reviewer | `combo:premium` | Claude Sonnet 4.6 | GPT-4o > Gemini 2.5 Pro | High | Catch subtle bugs, needs deep reasoning |
-| devops | `combo:balanced` | Gemini 2.5 Flash | Claude Haiku 4.5 | Medium | System ops, balanced cost/capability |
+| orchestrator | `morph-orchestrator` | Claude Sonnet 4.6 | GPT-4o > Gemini 2.5 Pro | High | Strategic decisions, task decomposition, synthesis — needs strong reasoning |
+| researcher | `morph-researcher` | Gemini 2.5 Flash | Claude Haiku 4.5 > GPT-4o-mini | Medium | Volume research queries, web-capable, cost-efficient |
+| executor | `morph-executor` | Claude Haiku 4.5 | Gemini 2.5 Flash > DeepSeek V3 | Low | High-volume code gen, structured output, cost-optimized |
+| reviewer | `morph-reviewer` | Claude Sonnet 4.6 | GPT-4o > Gemini 2.5 Pro | High | Catch subtle bugs, needs deep reasoning |
+| devops | `morph-devops` | Gemini 2.5 Flash | Claude Haiku 4.5 | Medium | System ops, balanced cost/capability |
 
 ### 9Router Combo Configuration
 
@@ -158,7 +158,7 @@ Each role = separate Hermes profile with full isolation:
 ```
 ~/.hermes/profiles/
   orchestrator/
-    config.yaml          # LLM via 9router combo:premium
+    config.yaml          # LLM via 9Router morph-<profile> combo
     .env                 # DISCORD_BOT_TOKEN, API keys
     SOUL.md              # Orchestrator identity & authority
     memories/            # MEMORY.md, USER.md (auto-managed)
@@ -389,8 +389,8 @@ Mounting: symlink or `skills.config` in each profile's config.yaml.
 - [ ] Discord integration: `43-link-discord-channels.sh`, 3 bots, 3 channels
 - [ ] Systemd services: `55-setup-systemd-per-profile.sh` (orchestrator always-on)
 - [ ] SQLite queue: schema + basic enqueue/dequeue in orchestrator SOUL.md guidance
-- [ ] 9Router combos: premium, balanced, budget
-- [ ] Caddy update: route per-profile endpoints
+- [ ] 9Router combos: `morph-orchestrator`, `morph-researcher`, `morph-executor`
+- [ ] Reverse proxy update: Nginx direct mode routes public HTTPS to 9Router
 - [ ] Doctor update: health check per profile
 - [ ] Smoke test: user sends task in `#orchestrator`, orchestrator delegates to executor, result returned
 
@@ -424,5 +424,5 @@ Mounting: symlink or `skills.config` in each profile's config.yaml.
 | `/var/lib/morph-agency/handoff/` | Large payload exchange |
 | `/var/lib/morph-agency/skills/common/` | Shared read-only skills |
 | `/opt/9router/` | 9Router installation |
-| `/etc/caddy/Caddyfile` | Caddy reverse proxy config |
-| `/etc/systemd/system/hermes-*-gateway.service` | Per-profile systemd units |
+| `/etc/nginx/sites-enabled/my-hermes.otomotives.com.conf` | Active Nginx direct reverse proxy config |
+| `/home/hermes/.config/systemd/user/hermes-gateway-*.service` | Per-profile Hermes user-level gateway units |

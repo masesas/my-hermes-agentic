@@ -123,7 +123,7 @@ NINE_ROUTER_NPM_BIN=
 NINE_ROUTER_API_KEY=
 NINE_ROUTER_BASE_URL=https://ai.example.com/v1
 
-HERMES_MODEL=orchestrator/powerful
+# HERMES_MODEL is no longer used for active profile config; use literal morph-<profile> in config.yaml
 
 DISCORD_BOT_TOKEN_ORCHESTRATOR=
 DISCORD_BOT_TOKEN_RESEARCHER=
@@ -148,7 +148,7 @@ chmod 600 .env
 Catatan penting:
 
 - `NINE_ROUTER_API_KEY` dikosongkan dulu karena dibuat setelah dashboard 9Router aktif.
-- `HERMES_MODEL` harus sesuai alias/combo yang nanti dibuat di 9Router.
+- Profile `config.yaml` harus memakai model literal `morph-<profile>`; jangan bergantung pada `${HERMES_MODEL}` untuk gateway aktif.
 - Gunakan `WEB_SERVER=nginx-direct` jika VPS sudah memakai Nginx sebagai load balancer/webserver.
 - Gunakan `WEB_SERVER=caddy` hanya jika ingin repo ini mengelola Caddy di port publik `80/443`.
 - Isi `NINE_ROUTER_NODE_BIN` dan `NINE_ROUTER_NPM_BIN` hanya jika setup NVM membuat skrip atau systemd salah memakai Node lama.
@@ -374,7 +374,7 @@ Skrip ini akan:
 Cek status Caddy:
 
 ```bash
-sudo systemctl status caddy
+sudo systemctl status nginx
 ```
 
 Buka dashboard:
@@ -390,7 +390,7 @@ Jika HTTPS belum aktif:
 - cek log Caddy:
 
 ```bash
-sudo journalctl -u caddy -f
+sudo journalctl -u nginx -f
 ```
 
 ---
@@ -409,22 +409,26 @@ Di dashboard 9Router:
 
 1. Tambahkan provider LLM yang ingin digunakan.
 2. Masukkan API key provider.
-3. Buat alias/combo sesuai kebutuhan agent.
-4. Minimal buat combo yang sama dengan `.env`:
+3. Buat model combo per agent dengan pola `morph-<profile>`.
+4. Minimal buat combo aktif berikut:
 
 ```text
-orchestrator/powerful
+morph-orchestrator
+morph-researcher
+morph-executor
 ```
 
 Rekomendasi combo:
 
 | Combo | Kegunaan | Contoh routing |
 | --- | --- | --- |
-| `combo:premium` atau `orchestrator/powerful` | planning, arsitektur, synthesis | model terkuat + fallback |
-| `combo:balanced` | research dan analisis umum | model menengah |
-| `combo:budget` | eksekusi rutin, coding sederhana | model hemat |
+| `morph-orchestrator` | planning, arsitektur, synthesis | model terkuat + fallback |
+| `morph-researcher` | research dan analisis umum | model menengah/web-capable |
+| `morph-executor` | eksekusi rutin, coding sederhana | model hemat + fallback coding |
 
-Buat API key untuk Hermes dari dashboard 9Router, lalu update `.env`:
+Untuk agent baru, ikuti pola `morph-<profile>` dan baca `docs/ADDING_NEW_AGENT.md`.
+
+Buat API key untuk Hermes dari dashboard 9Router bila ingin mengganti placeholder lokal, lalu update `.env`:
 
 ```bash
 nano /opt/ai-agent/.env
@@ -482,13 +486,7 @@ Untuk kompatibilitas mode single orchestrator, jalankan:
 sudo ./scripts/40-setup-hermes-orchestrator.sh
 ```
 
-Skrip ini membutuhkan:
-
-- `NINE_ROUTER_API_KEY`
-- `NINE_ROUTER_BASE_URL`
-- `HERMES_MODEL`
-
-Hasil utamanya adalah konfigurasi Hermes dasar untuk orchestrator.
+Skrip ini adalah jalur legacy untuk mode single orchestrator. Untuk deployment aktif, profile `config.yaml` multi-agent memakai model literal `morph-<profile>`. Jika script ini masih dipakai, pastikan hasil akhirnya tidak mengembalikan `default: ${HERMES_MODEL}` pada profile aktif.
 
 ---
 
@@ -591,43 +589,38 @@ Catatan:
 
 ## 15. Setup systemd Per Profile
 
-Jalankan:
+Deployment aktif memakai user-level systemd service milik user `hermes`. Unit berada di:
+
+```text
+/home/hermes/.config/systemd/user/hermes-gateway-orchestrator.service
+/home/hermes/.config/systemd/user/hermes-gateway-researcher.service
+/home/hermes/.config/systemd/user/hermes-gateway-executor.service
+```
+
+Jika memakai script setup:
 
 ```bash
 sudo ./scripts/55-setup-systemd-per-profile.sh
 ```
 
-Skrip ini akan membuat unit:
-
-```text
-hermes-orchestrator-gateway.service
-hermes-researcher-gateway.service
-hermes-executor-gateway.service
-```
-
-Behavior default:
-
-- `orchestrator` di-enable dan start otomatis jika `DISCORD_BOT_TOKEN_ORCHESTRATOR` tersedia
-- `researcher` dan `executor` dibuat tetapi tidak otomatis aktif karena spawn-on-demand
+Pastikan hasil akhirnya memakai unit user-level `hermes-gateway-<profile>.service`, bukan root-level `hermes-<profile>-gateway.service`.
 
 Cek status orchestrator:
 
 ```bash
-sudo systemctl status hermes-orchestrator-gateway
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus   systemctl --user status hermes-gateway-orchestrator
 ```
 
 Start researcher atau executor secara manual saat dibutuhkan:
 
 ```bash
-sudo systemctl start hermes-researcher-gateway
-sudo systemctl start hermes-executor-gateway
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus   systemctl --user start hermes-gateway-researcher hermes-gateway-executor
 ```
 
 Stop worker setelah selesai:
 
 ```bash
-sudo systemctl stop hermes-researcher-gateway
-sudo systemctl stop hermes-executor-gateway
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus   systemctl --user stop hermes-gateway-researcher hermes-gateway-executor
 ```
 
 ---
@@ -691,7 +684,7 @@ ping. reply exactly OK
 3. Cek log jika bot tidak merespons:
 
 ```bash
-sudo journalctl -u hermes-orchestrator-gateway -f
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus journalctl --user -u hermes-gateway-orchestrator -f
 ```
 
 ---
@@ -726,24 +719,24 @@ Status service:
 
 ```bash
 sudo systemctl status 9router
-sudo systemctl status caddy
-sudo systemctl status hermes-orchestrator-gateway
+sudo systemctl status nginx
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus systemctl --user status hermes-gateway-orchestrator
 ```
 
 Log service:
 
 ```bash
 sudo journalctl -u 9router -f
-sudo journalctl -u caddy -f
-sudo journalctl -u hermes-orchestrator-gateway -f
+sudo journalctl -u nginx -f
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus journalctl --user -u hermes-gateway-orchestrator -f
 ```
 
 Restart service:
 
 ```bash
 sudo systemctl restart 9router
-sudo systemctl restart caddy
-sudo systemctl restart hermes-orchestrator-gateway
+sudo systemctl reload nginx
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus systemctl --user restart hermes-gateway-orchestrator
 ```
 
 Masuk sebagai user Hermes:
@@ -846,7 +839,7 @@ sudo ls -la /home/hermes/.hermes/profiles/orchestrator/
 Cek log gateway:
 
 ```bash
-sudo journalctl -u hermes-orchestrator-gateway -n 100 --no-pager
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus journalctl --user -u hermes-gateway-orchestrator -n 100 --no-pager
 ```
 
 Tes tanpa Discord:
@@ -867,7 +860,7 @@ Pastikan:
 - service sudah direstart:
 
 ```bash
-sudo systemctl restart hermes-orchestrator-gateway
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus systemctl --user restart hermes-gateway-orchestrator
 ```
 
 ---

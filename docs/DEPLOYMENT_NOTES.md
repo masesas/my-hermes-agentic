@@ -2,19 +2,17 @@
 
 ## Critical Fixes Applied
 
-### 1. Systemd Unit Environment Variables
+### 1. Hermes Config Uses Literal 9Router Models
 
-**Problem**: Hermes gateway auto-regenerates systemd unit files on restart, removing any `EnvironmentFile=` directives we add manually.
+**Problem**: Hermes gateway did not consistently expand `${HERMES_MODEL}` inside profile `config.yaml`, causing requests to reach 9Router as `model=${HERMES_MODEL}` and fail with `No active credentials for provider: openai`.
 
-**Solution**: Inject environment variables directly as `Environment=` lines in the systemd unit file after `HERMES_HOME` line. These persist across Hermes gateway restarts.
+**Solution**: Profile `config.yaml` now uses literal 9Router combo names:
 
-**Script**: `/tmp/patch-units.sh` on VPS extracts vars from `.env` and injects into unit files.
+- `orchestrator` → `morph-orchestrator`
+- `researcher` → `morph-researcher`
+- `executor` → `morph-executor`
 
-**Key vars injected**:
-- `HERMES_MODEL` (e.g., `morph-orchestrator`)
-- `DISCORD_BOT_TOKEN`
-- `NINE_ROUTER_BASE_URL`
-- `NINE_ROUTER_API_KEY`
+For new agents, follow `morph-<profile>` and see `docs/ADDING_NEW_AGENT.md`.
 
 ### 2. Gateway Configuration
 
@@ -67,7 +65,7 @@ sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path
 
 2. **Silent gateway logs**: Hermes gateway doesn't log to journal after successful Discord connection. Use `lsof` to verify network connections instead.
 
-3. **Unit file regeneration**: Any manual edits to systemd unit files will be overwritten on gateway restart. Always use the patch script to re-inject env vars after Hermes updates.
+3. **Unit file regeneration**: Any manual edits to systemd unit files can be overwritten by Hermes. Keep durable model/base_url/api_key settings in profile `config.yaml` and use `.env` primarily for secrets such as `DISCORD_BOT_TOKEN`.
 
 ## Deployment Checklist
 
@@ -99,15 +97,9 @@ for p in orchestrator researcher executor; do
 done
 ```
 
-### Re-apply env var patch after Hermes update
-```bash
-sudo bash /tmp/patch-units.sh
-```
-
 ### Update Discord tokens
 1. Edit `/home/hermes/.hermes/profiles/<profile>/.env`
-2. Run patch script: `sudo bash /tmp/patch-units.sh`
-3. Restart gateway: `sudo -u hermes ... systemctl --user restart hermes-gateway-<profile>`
+2. Restart gateway: `sudo -u hermes ... systemctl --user restart hermes-gateway-<profile>`
 
 ---
 

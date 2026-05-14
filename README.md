@@ -54,6 +54,8 @@ For autonomous Discord agent routing and anti-loop policy, see:
 
 ```text
 docs/AUTONOMOUS_DISCORD_AGENTS.md
+
+docs/ADDING_NEW_AGENT.md
 ```
 
 On the VPS:
@@ -115,9 +117,10 @@ sudo ./scripts/90-doctor.sh
 
 ```bash
 sudo systemctl status 9router
-sudo systemctl status hermes-discord
+sudo systemctl status 9router
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus systemctl --user status hermes-gateway-orchestrator
 sudo journalctl -u 9router -f
-sudo journalctl -u hermes-discord -f
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/1005 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1005/bus journalctl --user -u hermes-gateway-orchestrator -f
 ```
 
 CLI:
