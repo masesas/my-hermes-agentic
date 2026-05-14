@@ -96,6 +96,45 @@ resolve_npm_bin() {
   return 1
 }
 
+patch_public_oauth_redirects() {
+  local oauth_modal="${APP_DIR}/src/shared/components/OAuthModal.js"
+
+  [[ -f "${oauth_modal}" ]] || return 0
+
+  if grep -q 'http://localhost:${appPort}/callback' "${oauth_modal}"; then
+    log "Patching 9Router OAuth browser redirects to use window.location.origin..."
+    sudo -u "${ROUTER_USER}" python3 - <<PY
+from pathlib import Path
+path = Path(${oauth_modal@Q})
+text = path.read_text()
+old = '''      const appPort = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
+      let redirectUri;
+      if (provider === "codex") {
+        redirectUri = "http://localhost:1455/auth/callback";
+      } else {
+        redirectUri = `http://localhost:\${appPort}/callback`;
+      }
+'''
+new = '''      const appPort = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
+      const isPublicOrigin = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+      // Providers whose OAuth client accepts arbitrary HTTPS redirect URIs.
+      const publicCapableProviders = new Set(["codex", "iflow", "kiro", "qoder", "antigravity", "gitlab"]);
+      let redirectUri;
+      if (provider === "codex") {
+        redirectUri = "http://localhost:1455/auth/callback";
+      } else if (isPublicOrigin && publicCapableProviders.has(provider)) {
+        redirectUri = `\${window.location.origin}/callback`;
+      } else {
+        redirectUri = `http://localhost:\${appPort}/callback`;
+      }
+'''
+if old not in text:
+    raise SystemExit("OAuth redirect block not found; 9Router source may have changed")
+path.write_text(text.replace(old, new))
+PY
+  fi
+}
+
 stage_node_runtime_if_needed() {
   local node_bin="$1"
   local npm_bin="$2"
@@ -145,6 +184,8 @@ else
   sudo -u "${ROUTER_USER}" git -C "${APP_DIR}" pull --ff-only
 fi
 
+patch_public_oauth_redirects
+
 log "Installing and building 9Router..."
 NODE_BIN="$(resolve_node_bin)" || die "No compatible Node.js found. Install Node.js >=20.9.0 or set NINE_ROUTER_NODE_BIN=/path/to/node in .env."
 NODE_BIN_DIR="$(dirname "${NODE_BIN}")"
@@ -186,6 +227,10 @@ HOSTNAME=127.0.0.1
 DATA_DIR=${DATA_DIR}
 NEXT_PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
 NEXT_PUBLIC_CLOUD_URL=https://9router.com
+BASE_URL=${PUBLIC_BASE_URL}
+CLOUD_URL=${PUBLIC_BASE_URL}
+NEXTAUTH_URL=${PUBLIC_BASE_URL}
+AUTH_URL=${PUBLIC_BASE_URL}
 INITIAL_PASSWORD=${NINE_ROUTER_INITIAL_PASSWORD}
 JWT_SECRET=${NINE_ROUTER_JWT_SECRET}
 API_KEY_SECRET=${NINE_ROUTER_API_KEY_SECRET}
