@@ -159,6 +159,58 @@ else
   log "Skipping Hermes LLM check because NINE_ROUTER_API_KEY is empty."
 fi
 
+# ── morph-task multi-project checks ─────────────────────────────────
+
+log "Checking morph-task projects..."
+MORPH_TASK_BIN="${MORPH_TASK_BIN:-/opt/morph-agency/bin/morph-task}"
+ROLE_POLICY_TARGET="${AGENCY_DIR}/config/role-policy.yaml"
+
+if [[ -x "${MORPH_TASK_BIN}" && -f "${ROLE_POLICY_TARGET}" ]]; then
+  if projects_json="$(sudo -u "${HERMES_USER}" env \
+      MORPH_PROFILE=orchestrator \
+      MORPH_ROLE_POLICY="${ROLE_POLICY_TARGET}" \
+      MORPH_RUNTIME_DB="${QUEUE_DB}" \
+      "${MORPH_TASK_BIN}" projects 2>/dev/null)"; then
+    project_names="$(printf '%s' "${projects_json}" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p')"
+    if [[ -z "${project_names}" ]]; then
+      check_warn "No projects configured in ${ROLE_POLICY_TARGET}"
+    fi
+    for project in ${project_names}; do
+      check_pass "Project '${project}' declared in role-policy.yaml"
+      ws="/home/${HERMES_USER}/workspace/${project}"
+      if [[ -d "${ws}" ]]; then
+        check_pass "Project '${project}' workspace ${ws} exists"
+      else
+        check_fail "Project '${project}' workspace ${ws} missing (run 51-create-project.sh ${project})"
+      fi
+      handoff="${AGENCY_DIR}/handoff/${project}"
+      if [[ -d "${handoff}" ]]; then
+        check_pass "Project '${project}' handoff dir ${handoff} exists"
+      else
+        check_warn "Project '${project}' handoff dir ${handoff} missing"
+      fi
+      if recon_json="$(sudo -u "${HERMES_USER}" env \
+          MORPH_PROFILE=orchestrator \
+          MORPH_ROLE_POLICY="${ROLE_POLICY_TARGET}" \
+          MORPH_RUNTIME_DB="${QUEUE_DB}" \
+          "${MORPH_TASK_BIN}" --project "${project}" reconcile 2>/dev/null)"; then
+        issue_count="$(printf '%s' "${recon_json}" | grep -c '"type"' || true)"
+        if [[ "${issue_count}" -eq 0 ]]; then
+          check_pass "Project '${project}' reconcile clean"
+        else
+          check_warn "Project '${project}' reconcile reports ${issue_count} drift issue(s)"
+        fi
+      else
+        check_warn "Project '${project}' reconcile failed (Beads workspace may be uninitialized)"
+      fi
+    done
+  else
+    check_warn "morph-task projects command failed; check policy at ${ROLE_POLICY_TARGET}"
+  fi
+else
+  check_warn "morph-task binary or role-policy.yaml missing; skipping per-project checks"
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────
 
 if [[ "${FAILURES}" -gt 0 ]]; then

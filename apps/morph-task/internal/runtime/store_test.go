@@ -189,7 +189,7 @@ func TestListPolicyViolationsAndHealthSummary(t *testing.T) {
 		t.Fatalf("AuditViolation() error = %v; want nil", err)
 	}
 
-	violations, err := store.ListPolicyViolations(ctx, 10)
+	violations, err := store.ListPolicyViolations(ctx, "default", 10)
 	if err != nil {
 		t.Fatalf("ListPolicyViolations() error = %v; want nil", err)
 	}
@@ -197,7 +197,7 @@ func TestListPolicyViolationsAndHealthSummary(t *testing.T) {
 		t.Fatalf("violations = %+v; want one executor violation", violations)
 	}
 
-	summary, err := store.HealthSummary(ctx)
+	summary, err := store.HealthSummary(ctx, "default")
 	if err != nil {
 		t.Fatalf("HealthSummary() error = %v; want nil", err)
 	}
@@ -206,5 +206,61 @@ func TestListPolicyViolationsAndHealthSummary(t *testing.T) {
 	}
 	if summary.PolicyViolations != 1 {
 		t.Fatalf("policy violations = %d; want 1", summary.PolicyViolations)
+	}
+}
+
+func TestProjectIsolationForHealthAndAudit(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("Migrate() error = %v; want nil", err)
+	}
+
+	if err := store.CreateAssignment(ctx, CreateAssignmentRequest{ProjectID: "alpha", BeadID: "alpha-1", TargetProfile: "executor"}); err != nil {
+		t.Fatalf("CreateAssignment(alpha) error = %v; want nil", err)
+	}
+	if err := store.CreateAssignment(ctx, CreateAssignmentRequest{ProjectID: "beta", BeadID: "beta-1", TargetProfile: "researcher"}); err != nil {
+		t.Fatalf("CreateAssignment(beta) error = %v; want nil", err)
+	}
+	if err := store.AuditViolation(ctx, AuditViolationRequest{ProjectID: "alpha", Profile: "executor", Action: "assign", Reason: "denied"}); err != nil {
+		t.Fatalf("AuditViolation(alpha) error = %v; want nil", err)
+	}
+	if err := store.AuditViolation(ctx, AuditViolationRequest{ProjectID: "beta", Profile: "executor", Action: "assign", Reason: "denied"}); err != nil {
+		t.Fatalf("AuditViolation(beta) error = %v; want nil", err)
+	}
+
+	alphaSummary, err := store.HealthSummary(ctx, "alpha")
+	if err != nil {
+		t.Fatalf("HealthSummary(alpha) error = %v", err)
+	}
+	if alphaSummary.ProjectID != "alpha" {
+		t.Fatalf("alpha project id = %q; want alpha", alphaSummary.ProjectID)
+	}
+	if alphaSummary.Assignments["pending"] != 1 || alphaSummary.PolicyViolations != 1 {
+		t.Fatalf("alpha summary = %+v; want one pending one violation", alphaSummary)
+	}
+
+	betaSummary, err := store.HealthSummary(ctx, "beta")
+	if err != nil {
+		t.Fatalf("HealthSummary(beta) error = %v", err)
+	}
+	if betaSummary.Assignments["pending"] != 1 || betaSummary.PolicyViolations != 1 {
+		t.Fatalf("beta summary = %+v; want isolated counts", betaSummary)
+	}
+
+	alphaViolations, err := store.ListPolicyViolations(ctx, "alpha", 10)
+	if err != nil {
+		t.Fatalf("ListPolicyViolations(alpha) error = %v", err)
+	}
+	if len(alphaViolations) != 1 || alphaViolations[0].ProjectID != "alpha" {
+		t.Fatalf("alpha violations = %+v; want single alpha-scoped violation", alphaViolations)
+	}
+
+	betaViolations, err := store.ListPolicyViolations(ctx, "beta", 10)
+	if err != nil {
+		t.Fatalf("ListPolicyViolations(beta) error = %v", err)
+	}
+	if len(betaViolations) != 1 || betaViolations[0].ProjectID != "beta" {
+		t.Fatalf("beta violations = %+v; want single beta-scoped violation", betaViolations)
 	}
 }

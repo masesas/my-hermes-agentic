@@ -1,0 +1,20 @@
+# systemd service for per-project morph-task reconcile.
+# Instance name = project name, e.g. morph-reconcile@client-a.service
+#
+# Install path: /home/hermes/.config/systemd/user/morph-reconcile@.service
+# Enable: systemctl --user enable --now morph-reconcile@default.timer
+[Unit]
+Description=Morph task reconcile for project %i
+After=network.target
+
+[Service]
+Type=oneshot
+User=hermes
+Environment=MORPH_PROFILE=orchestrator
+EnvironmentFile=/home/hermes/.hermes/profiles/orchestrator/.env
+ExecStart=/opt/morph-agency/bin/morph-task --project %i reconcile
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

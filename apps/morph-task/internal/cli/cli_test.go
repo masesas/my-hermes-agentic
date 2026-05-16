@@ -615,11 +615,11 @@ func (f *fakeStore) AuditViolation(ctx context.Context, request runtime.AuditVio
 	return nil
 }
 
-func (f *fakeStore) ListPolicyViolations(ctx context.Context, limit int) ([]runtime.PolicyViolation, error) {
+func (f *fakeStore) ListPolicyViolations(ctx context.Context, projectID string, limit int) ([]runtime.PolicyViolation, error) {
 	return f.violations, nil
 }
 
-func (f *fakeStore) HealthSummary(ctx context.Context) (runtime.HealthSummary, error) {
+func (f *fakeStore) HealthSummary(ctx context.Context, projectID string) (runtime.HealthSummary, error) {
 	return f.health, nil
 }
 
@@ -645,4 +645,75 @@ profiles:
     allowed_task_kinds:
       - execution
 `)
+}
+
+func TestRunProjectsList(t *testing.T) {
+	store := &fakeStore{}
+	policyFile := writeProjectPolicyFixture(t)
+	stdout, stderr, code := runCLI(t, runOptions{
+		args:  []string{"--project", "client-a", "projects"},
+		env:   map[string]string{"MORPH_PROFILE": "orchestrator", "MORPH_ROLE_POLICY": policyFile},
+		beads: &fakeBeads{},
+		store: store,
+	})
+	if code != ExitOK {
+		t.Fatalf("projects list code = %d; want ExitOK; stderr=%s", code, stderr)
+	}
+	if !strings.Contains(stdout, "client-a") {
+		t.Fatalf("stdout = %q; want client-a in project list", stdout)
+	}
+}
+
+func TestRunProjectsShow(t *testing.T) {
+	store := &fakeStore{health: runtime.HealthSummary{ProjectID: "client-a", Assignments: map[string]int{"pending": 2}}}
+	policyFile := writeProjectPolicyFixture(t)
+	stdout, stderr, code := runCLI(t, runOptions{
+		args:  []string{"--project", "client-a", "projects", "client-a"},
+		env:   map[string]string{"MORPH_PROFILE": "orchestrator", "MORPH_ROLE_POLICY": policyFile},
+		beads: &fakeBeads{},
+		store: store,
+	})
+	if code != ExitOK {
+		t.Fatalf("projects show code = %d; want ExitOK; stderr=%s", code, stderr)
+	}
+	if !strings.Contains(stdout, "client-a") {
+		t.Fatalf("stdout = %q; want client-a", stdout)
+	}
+}
+
+func TestRunProjectsShowUnknown(t *testing.T) {
+	store := &fakeStore{}
+	policyFile := writeProjectPolicyFixture(t)
+	_, stderr, code := runCLI(t, runOptions{
+		args:  []string{"--project", "client-a", "projects", "doesnotexist"},
+		env:   map[string]string{"MORPH_PROFILE": "orchestrator", "MORPH_ROLE_POLICY": policyFile},
+		beads: &fakeBeads{},
+		store: store,
+	})
+	if code != ExitUnavailable {
+		t.Fatalf("projects unknown code = %d; want ExitUnavailable; stderr=%s", code, stderr)
+	}
+}
+
+func TestResolveProjectFallbackChain(t *testing.T) {
+	cases := []struct {
+		name     string
+		override string
+		env      map[string]string
+		want     string
+	}{
+		{name: "override wins", override: "alpha", env: map[string]string{"MORPH_PROJECT": "beta", "MORPH_DEFAULT_PROJECT": "gamma"}, want: "alpha"},
+		{name: "morph_project beats default", override: "", env: map[string]string{"MORPH_PROJECT": "beta", "MORPH_DEFAULT_PROJECT": "gamma"}, want: "beta"},
+		{name: "fallback to default", override: "", env: map[string]string{"MORPH_DEFAULT_PROJECT": "gamma"}, want: "gamma"},
+		{name: "ultimate fallback", override: "", env: map[string]string{}, want: "default"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			getenv := func(k string) string { return tc.env[k] }
+			got := resolveProject(getenv, tc.override)
+			if got != tc.want {
+				t.Fatalf("resolveProject = %q; want %q", got, tc.want)
+			}
+		})
+	}
 }

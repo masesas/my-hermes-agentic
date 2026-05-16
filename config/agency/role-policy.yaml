@@ -65,3 +65,12 @@ projects:
       - orchestrator
       - researcher
       - executor
+
+  # Example client project — copy this block to onboard a new project.
+  # client-a:
+  #   workspace: /home/hermes/workspace/client-a
+  #   handoff_dir: /var/lib/morph-agency/handoff/client-a
+  #   allowed_profiles:
+  #     - orchestrator
+  #     - researcher
+  #     - executor

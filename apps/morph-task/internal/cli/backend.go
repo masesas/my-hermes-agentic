@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,8 +42,8 @@ type runtimeStore interface {
 	Claim(context.Context, runtime.ClaimRequest) (runtime.Assignment, error)
 	Complete(context.Context, runtime.CompleteRequest) (runtime.Assignment, error)
 	AuditViolation(context.Context, runtime.AuditViolationRequest) error
-	ListPolicyViolations(context.Context, int) ([]runtime.PolicyViolation, error)
-	HealthSummary(context.Context) (runtime.HealthSummary, error)
+	ListPolicyViolations(context.Context, string, int) ([]runtime.PolicyViolation, error)
+	HealthSummary(context.Context, string) (runtime.HealthSummary, error)
 	ListAssignments(context.Context, string) ([]runtime.Assignment, error)
 }
 
@@ -158,7 +159,7 @@ func executeBackend(ctx context.Context, cfg policy.Config, request commandReque
 		}
 		return fmt.Sprintf("doctor ok profile=%s beads=ok runtime=ok", profile), nil
 	case policy.ActionAudit:
-		violations, err := store.ListPolicyViolations(ctx, request.Metadata.Limit)
+		violations, err := store.ListPolicyViolations(ctx, request.Project, request.Metadata.Limit)
 		if err != nil {
 			return "", err
 		}
@@ -168,7 +169,7 @@ func executeBackend(ctx context.Context, cfg policy.Config, request commandReque
 		}
 		return string(data), nil
 	case policy.ActionHealth:
-		summary, err := store.HealthSummary(ctx)
+		summary, err := store.HealthSummary(ctx, request.Project)
 		if err != nil {
 			return "", err
 		}
@@ -179,6 +180,8 @@ func executeBackend(ctx context.Context, cfg policy.Config, request commandReque
 		return string(data), nil
 	case policy.ActionReconcile:
 		return runReconcile(ctx, request.Project, client, store)
+	case policy.ActionProjects:
+		return runProjects(ctx, cfg, request.Metadata.BeadID, store)
 	default:
 		return "", fmt.Errorf("backend execution for %s is not implemented yet", request.Action)
 	}
@@ -243,4 +246,64 @@ func resolveWorkspace(cfg policy.Config, projectID string, getenv Getenv) string
 		return strings.TrimSpace(project.Workspace)
 	}
 	return firstNonEmpty(cfg.Backend.BeadsWorkspace, ".")
+}
+
+
+type projectsReport struct {
+	Name            string         `json:"name"`
+	Workspace       string         `json:"workspace"`
+	HandoffDir      string         `json:"handoff_dir"`
+	AllowedProfiles []string       `json:"allowed_profiles"`
+	Assignments     map[string]int `json:"assignments,omitempty"`
+	PolicyViolations int           `json:"policy_violations,omitempty"`
+}
+
+func runProjects(ctx context.Context, cfg policy.Config, name string, store runtimeStore) (string, error) {
+	names := make([]string, 0, len(cfg.Projects))
+	for n := range cfg.Projects {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	if name == "" {
+		reports := make([]projectsReport, 0, len(names))
+		for _, n := range names {
+			p := cfg.Projects[n]
+			reports = append(reports, projectsReport{
+				Name:            n,
+				Workspace:       p.Workspace,
+				HandoffDir:      p.HandoffDir,
+				AllowedProfiles: p.AllowedProfiles,
+			})
+		}
+		data, err := json.MarshalIndent(reports, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("encode projects output: %w", err)
+		}
+		return string(data), nil
+	}
+
+	project, ok := cfg.Projects[name]
+	if !ok {
+		return "", fmt.Errorf("%w: %s", policy.ErrProjectDenied, name)
+	}
+
+	report := projectsReport{
+		Name:            name,
+		Workspace:       project.Workspace,
+		HandoffDir:      project.HandoffDir,
+		AllowedProfiles: project.AllowedProfiles,
+	}
+	summary, err := store.HealthSummary(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	report.Assignments = summary.Assignments
+	report.PolicyViolations = summary.PolicyViolations
+
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("encode project output: %w", err)
+	}
+	return string(data), nil
 }

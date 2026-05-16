@@ -1,0 +1,14 @@
+# systemd timer that triggers morph-reconcile@<project>.service every 15 minutes.
+#
+# Install path: /home/hermes/.config/systemd/user/morph-reconcile@.timer
+[Unit]
+Description=Periodic morph-task reconcile for project %i
+Requires=morph-reconcile@%i.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Unit=morph-reconcile@%i.service
+
+[Install]
+WantedBy=timers.target

@@ -299,19 +299,21 @@ type PolicyViolation struct {
 }
 
 type HealthSummary struct {
+	ProjectID        string
 	Assignments      map[string]int
 	PolicyViolations int
 	Profiles         map[string]string
 }
 
-func (s *Store) ListPolicyViolations(ctx context.Context, limit int) ([]PolicyViolation, error) {
+func (s *Store) ListPolicyViolations(ctx context.Context, projectID string, limit int) ([]PolicyViolation, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 20
 	}
+	project := defaultProject(projectID)
 	rows, err := s.db.QueryContext(ctx, `SELECT id, project_id, profile, action, COALESCE(target_profile, ''), COALESCE(bead_id, ''), reason, created_at
-		FROM policy_violations ORDER BY id DESC LIMIT ?`, limit)
+		FROM policy_violations WHERE project_id = ? ORDER BY id DESC LIMIT ?`, project, limit)
 	if err != nil {
-		return nil, fmt.Errorf("list policy violations: %w", err)
+		return nil, fmt.Errorf("list policy violations for project %s: %w", project, err)
 	}
 	defer rows.Close()
 
@@ -329,12 +331,13 @@ func (s *Store) ListPolicyViolations(ctx context.Context, limit int) ([]PolicyVi
 	return violations, nil
 }
 
-func (s *Store) HealthSummary(ctx context.Context) (HealthSummary, error) {
-	summary := HealthSummary{Assignments: map[string]int{}, Profiles: map[string]string{}}
+func (s *Store) HealthSummary(ctx context.Context, projectID string) (HealthSummary, error) {
+	summary := HealthSummary{ProjectID: defaultProject(projectID), Assignments: map[string]int{}, Profiles: map[string]string{}}
+	project := summary.ProjectID
 
-	rows, err := s.db.QueryContext(ctx, `SELECT status, count(*) FROM runtime_assignments GROUP BY status`)
+	rows, err := s.db.QueryContext(ctx, `SELECT status, count(*) FROM runtime_assignments WHERE project_id = ? GROUP BY status`, project)
 	if err != nil {
-		return summary, fmt.Errorf("query assignment health: %w", err)
+		return summary, fmt.Errorf("query assignment health for project %s: %w", project, err)
 	}
 	for rows.Next() {
 		var status string
@@ -349,8 +352,8 @@ func (s *Store) HealthSummary(ctx context.Context) (HealthSummary, error) {
 		return summary, fmt.Errorf("close assignment health rows: %w", err)
 	}
 
-	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM policy_violations`).Scan(&summary.PolicyViolations); err != nil {
-		return summary, fmt.Errorf("query policy violation health: %w", err)
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM policy_violations WHERE project_id = ?`, project).Scan(&summary.PolicyViolations); err != nil {
+		return summary, fmt.Errorf("query policy violation health for project %s: %w", project, err)
 	}
 
 	profileRows, err := s.db.QueryContext(ctx, `SELECT profile, status FROM profile_health ORDER BY profile`)

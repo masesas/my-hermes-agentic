@@ -16,7 +16,7 @@ ROLE_POLICY_TARGET="${CONFIG_DIR}/role-policy.yaml"
 RUNTIME_DB="${AGENCY_DIR}/queue.db"
 BEADS_BIN="${BEADS_BIN:-${BIN_DIR}/bd}"
 BD_GUARD_BIN="${BD_GUARD_BIN:-/usr/local/bin/bd}"
-BEADS_WORKSPACE="${BEADS_WORKSPACE:-/home/${HERMES_USER}/workspace/${MORPH_PROJECT:-default}}"
+DEFAULT_PROJECT="${MORPH_DEFAULT_PROJECT:-default}"
 
 id "${HERMES_USER}" >/dev/null 2>&1 || die "User ${HERMES_USER} does not exist. Run 30-install-hermes.sh first."
 command -v go >/dev/null 2>&1 || die "go binary not found. Install Go before building morph-task."
@@ -26,8 +26,6 @@ command -v go >/dev/null 2>&1 || die "go binary not found. Install Go before bui
 ensure_dir "${AGENCY_DIR}" "${HERMES_USER}:${HERMES_USER}" 750
 ensure_dir "${CONFIG_DIR}" "${HERMES_USER}:${HERMES_USER}" 750
 ensure_dir "${BIN_DIR}" "root:${HERMES_USER}" 755
-ensure_dir "${BEADS_WORKSPACE}" "${HERMES_USER}:${HERMES_USER}" 755
-
 log "Building morph-task CLI..."
 (
   cd "${MORPH_TASK_SOURCE}"
@@ -77,12 +75,11 @@ for profile in "${PROFILES[@]}"; do
   [[ -f "${profile_env}" ]] || touch "${profile_env}"
 
   append_or_replace_env "${profile_env}" "MORPH_PROFILE" "${profile}"
-  append_or_replace_env "${profile_env}" "MORPH_PROJECT" "${MORPH_PROJECT:-default}"
+  append_or_replace_env "${profile_env}" "MORPH_DEFAULT_PROJECT" "${DEFAULT_PROJECT}"
   append_or_replace_env "${profile_env}" "MORPH_TASK_BIN" "${BIN_DIR}/morph-task"
   append_or_replace_env "${profile_env}" "MORPH_ROLE_POLICY" "${ROLE_POLICY_TARGET}"
   append_or_replace_env "${profile_env}" "MORPH_RUNTIME_DB" "${RUNTIME_DB}"
   append_or_replace_env "${profile_env}" "MORPH_BEADS_BIN" "${BEADS_BIN}"
-  append_or_replace_env "${profile_env}" "MORPH_BEADS_WORKSPACE" "${BEADS_WORKSPACE}"
   append_or_replace_env "${profile_env}" "MORPH_DENY_DIRECT_BD" "true"
 
   chown "${HERMES_USER}:${HERMES_USER}" "${profile_env}"
@@ -99,7 +96,6 @@ sudo -u "${HERMES_USER}" env \
   MORPH_ROLE_POLICY="${ROLE_POLICY_TARGET}" \
   MORPH_RUNTIME_DB="${RUNTIME_DB}" \
   MORPH_BEADS_BIN="${BEADS_BIN}" \
-  MORPH_BEADS_WORKSPACE="${BEADS_WORKSPACE}" \
   "${BIN_DIR}/morph-task" --version >/dev/null
 
-log "morph-task install complete. Run 'morph-task doctor' after installing Beads at ${BEADS_BIN}."
+log "morph-task install complete. Next: run '51-create-project.sh default' to bootstrap the default project workspace."

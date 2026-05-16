@@ -20,6 +20,7 @@ const (
 	ActionAudit     Action = "audit"
 	ActionHealth    Action = "health"
 	ActionReconcile Action = "reconcile"
+	ActionProjects  Action = "projects"
 )
 
 var (
@@ -130,7 +131,7 @@ func (c Config) Authorize(request Request) error {
 			return fmt.Errorf("%w: profile %s cannot assign tasks", ErrActionDenied, request.Profile)
 		}
 		return authorizeKind(profile, request)
-	case ActionReady, ActionShow, ActionDoctor, ActionAudit, ActionHealth, ActionReconcile:
+	case ActionReady, ActionShow, ActionDoctor, ActionAudit, ActionHealth, ActionReconcile, ActionProjects:
 		return nil
 	case ActionClaim:
 		if len(profile.CanClaimTargets) == 0 {

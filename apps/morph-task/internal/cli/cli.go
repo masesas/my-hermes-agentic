@@ -107,6 +107,9 @@ func resolveProject(getenv Getenv, override string) string {
 		project = strings.TrimSpace(getenv("MORPH_PROJECT"))
 	}
 	if project == "" {
+		project = strings.TrimSpace(getenv("MORPH_DEFAULT_PROJECT"))
+	}
+	if project == "" {
 		project = "default"
 	}
 	return project
@@ -276,6 +279,14 @@ func parseCommand(args []string) (commandRequest, error) {
 		}
 		request.Metadata.BeadID = strings.TrimSpace(flags.Arg(0))
 		request.Metadata.Message = strings.TrimSpace(*reason)
+	case policy.ActionProjects:
+		flags := newCommandFlagSet(command)
+		if err := flags.Parse(args[1:]); err != nil {
+			return commandRequest{}, err
+		}
+		if flags.NArg() > 0 {
+			request.Metadata.BeadID = strings.TrimSpace(flags.Arg(0)) // reuse field as subcommand: "show <name>"
+		}
 	default:
 		return commandRequest{}, fmt.Errorf("unknown command %q", command)
 	}
@@ -307,7 +318,7 @@ func writeUsage(writer io.Writer) {
 	fmt.Fprintln(writer, "  audit     Show recent policy violations")
 	fmt.Fprintln(writer, "  health    Show runtime health summary")
 	fmt.Fprintln(writer, "  reconcile Compare Beads ready tasks with runtime assignments")
-	fmt.Fprintln(writer, "\nOnly create and claim execute backends today; other commands remain pending.")
+	fmt.Fprintln(writer, "  projects  List configured projects (optionally show <name>)")
 }
 
 func valueOrDash(value string) string {

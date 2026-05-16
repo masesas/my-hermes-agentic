@@ -125,6 +125,7 @@ Scripts are numbered for sequential execution during initial VPS setup:
 47-install-morph-task   Build/install morph-task wrapper and role policy
         |
 48-build-morph-task    Optional local/CI release binary build
+51-create-project      Onboard a new morph-task project (workspace, handoff, policy)
         |
 49-reset-agent-memory Optional selective reset for learned behavior drift
         |
