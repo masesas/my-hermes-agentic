@@ -1,0 +1,58 @@
+# Morph task wrapper role policy.
+# Installed to /var/lib/morph-agency/config/role-policy.yaml by a future script.
+
+version: 1
+backend:
+  beads_bin: /opt/morph-agency/bin/bd
+  beads_workspace: /home/hermes/workspace
+  runtime_db: /var/lib/morph-agency/queue.db
+  handoff_dir: /var/lib/morph-agency/handoff
+
+defaults:
+  deny_unknown_profile: true
+  deny_direct_bd_usage: true
+  require_task_id: true
+  audit_policy_violations: true
+
+profiles:
+  orchestrator:
+    role: task_router
+    can_create: true
+    can_assign: true
+    can_read_all: true
+    can_claim_targets: []
+    can_write_result_targets: []
+    can_close: true
+    allowed_task_kinds:
+      - research
+      - execution
+      - verification
+      - planning
+
+  researcher:
+    role: research_worker
+    can_create: false
+    can_assign: false
+    can_read_all: false
+    can_claim_targets:
+      - researcher
+    can_write_result_targets:
+      - researcher
+    can_close: false
+    allowed_task_kinds:
+      - research
+      - planning
+
+  executor:
+    role: execution_worker
+    can_create: false
+    can_assign: false
+    can_read_all: false
+    can_claim_targets:
+      - executor
+    can_write_result_targets:
+      - executor
+    can_close: false
+    allowed_task_kinds:
+      - execution
+      - verification

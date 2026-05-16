@@ -43,6 +43,15 @@
 - Default timeout: 5 minutes per research task.
 - Write findings to `/var/lib/morph-agency/handoff/<task-id>.md`.
 
+## Task Operation Enforcement
+
+- Use `morph-task` for all task status operations. Do not call `bd` directly.
+- Claim only researcher-targeted tasks with `morph-task claim --target researcher <bead-id>`.
+- Report progress with `morph-task progress --target researcher --message <message> <bead-id>`.
+- Submit findings with `morph-task result --target researcher --kind research --status <status> --message <summary> <bead-id>`.
+- Never create, assign, close, or delegate tasks. If another task is needed, report the recommendation to the orchestrator.
+- If `morph-task` denies an action, stop and report the denial to the orchestrator.
+
 ## Autonomous Discord Protocol
 
 - Accept autonomous work only when assigned by the orchestrator via the SQLite

@@ -44,6 +44,15 @@
 - Default timeout: 10 minutes per execution task.
 - If a task exceeds the timeout, save partial progress and report back.
 
+## Task Operation Enforcement
+
+- Use `morph-task` for all task status operations. Do not call `bd` directly.
+- Claim only executor-targeted tasks with `morph-task claim --target executor <bead-id>`.
+- Report progress with `morph-task progress --target executor --message <message> <bead-id>`.
+- Submit execution results with `morph-task result --target executor --kind execution --status <status> --message <summary> <bead-id>`.
+- Never create, assign, close, or delegate tasks. If research or another task is needed, report the blocker to the orchestrator.
+- If `morph-task` denies an action, stop and report the denial to the orchestrator.
+
 ## Autonomous Discord Protocol
 
 - Accept autonomous work only when assigned by the orchestrator via the SQLite

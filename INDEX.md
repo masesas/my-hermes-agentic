@@ -11,6 +11,8 @@ ai-agent/
 ├── .claude/                        # IDE settings (Claude Code)
 │   ├── settings.json
 │   └── settings.local.json
+├── apps/                           # Project applications and CLIs
+│   └── morph-task/                 # Role-enforcing Beads task wrapper CLI
 ├── config/                         # All service configuration
 │   ├── caddy/
 │   │   └── Caddyfile               # Reverse proxy config (Caddy)
@@ -39,9 +41,13 @@ ai-agent/
 │   ├── 00-preflight.sh             # OS and env validation
 │   ├── 10-install-system-deps.sh   # System packages (curl, git, etc.)
 │   ├── 20-install-9router.sh       # 9Router LLM gateway installation
+│   ├── 21-update-9router.sh        # 9Router update/install helper
 │   ├── 30-install-hermes.sh        # Hermes Agent installation
 │   ├── 40-setup-hermes-orchestrator.sh  # Single orchestrator profile setup
 │   ├── 45-create-agent-profile.sh  # Interactive new agent profile generator
+│   ├── 46-install-beads.sh         # Install real Beads bd binary safely
+│   ├── 47-install-morph-task.sh    # Build/install role-enforcing task wrapper
+│   ├── 48-build-morph-task.sh      # Build distributable morph-task binaries
 │   ├── 50-setup-systemd.sh         # 9Router/system service installation
 │   ├── 55-setup-systemd-per-profile.sh # Hermes user-level gateway services
 │   ├── 60-setup-caddy.sh           # Caddy reverse proxy setup when WEB_SERVER=caddy
@@ -70,6 +76,7 @@ ai-agent/
 
 | File | Role |
 |------|------|
+| `apps/morph-task/` | Go CLI project for the future `morph-task` role-enforcing Beads wrapper. |
 | `scripts/lib.sh` | Shared bash library. Every script sources this. Provides `log`, `die`, `require_root`, `load_env`, `require_env`, `ensure_dir`. |
 | `config/hermes/profiles/*/SOUL.md` | Agent persona definition. Loaded by Hermes on gateway start. Controls identity, authority, permissions, and behavioral rules. |
 | `config/hermes/profiles/*/config.yaml` | Agent runtime config. LLM combo, delegation limits, terminal settings, memory, Discord options. |
@@ -91,6 +98,9 @@ Scripts are numbered for sequential execution during initial VPS setup:
         |
 20-install-9router       Install and configure 9Router
         |
+21-update-9router        Optional ops script to update existing 9Router,
+                         or install it if missing
+        |
     [MANUAL STEP]        Open 9Router dashboard, configure providers,
                          create API key, update .env
         |
@@ -102,6 +112,12 @@ Scripts are numbered for sequential execution during initial VPS setup:
                          Install autonomous routing and anti-loop policy
         |
 45-create-agent-profile  Optional interactive generator for additional agents
+        |
+46-install-beads       Install real Beads bd binary to /opt/morph-agency/bin
+        |
+47-install-morph-task   Build/install morph-task wrapper and role policy
+        |
+48-build-morph-task    Optional local/CI release binary build
         |
 50-setup-systemd         Install 9Router/system services
         |

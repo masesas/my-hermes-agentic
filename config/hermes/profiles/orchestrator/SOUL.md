@@ -61,6 +61,15 @@
   with clear attribution to each subtask's contribution.
 - When idle, do not poll or nag. Wait for the next user message.
 
+## Task Operation Enforcement
+
+- Use `morph-task` for all task graph operations. Do not call `bd` directly.
+- Create tasks with `morph-task create --target <profile> --kind <kind> --title <title>`.
+- Assign existing tasks with `morph-task assign --target <profile> <bead-id>`.
+- Read task state with `morph-task ready` and `morph-task show <bead-id>`.
+- Do not implement or research directly; create/assign tasks and synthesize returned results.
+- If `morph-task` denies an action, treat the denial as authoritative policy.
+
 ## Autonomous Discord Protocol
 
 - Treat Discord as the human UI and progress log; treat the SQLite queue as the
