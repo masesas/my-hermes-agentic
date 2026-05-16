@@ -9,7 +9,7 @@ HERMES_USER="${HERMES_USER:-hermes}"
 AGENCY_DIR="/var/lib/morph-agency"
 BIN_DIR="/opt/morph-agency/bin"
 BEADS_BIN="${BEADS_BIN:-${BIN_DIR}/bd}"
-BEADS_WORKSPACE="${BEADS_WORKSPACE:-/home/${HERMES_USER}/workspace}"
+BEADS_WORKSPACE="${BEADS_WORKSPACE:-/home/${HERMES_USER}/workspace/${MORPH_PROJECT:-default}}"
 BEADS_PACKAGE="${BEADS_PACKAGE:-github.com/gastownhall/beads/cmd/bd@latest}"
 
 id "${HERMES_USER}" >/dev/null 2>&1 || die "User ${HERMES_USER} does not exist. Run 30-install-hermes.sh first."

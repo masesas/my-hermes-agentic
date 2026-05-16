@@ -43,6 +43,7 @@ type runtimeStore interface {
 	AuditViolation(context.Context, runtime.AuditViolationRequest) error
 	ListPolicyViolations(context.Context, int) ([]runtime.PolicyViolation, error)
 	HealthSummary(context.Context) (runtime.HealthSummary, error)
+	ListAssignments(context.Context, string) ([]runtime.Assignment, error)
 }
 
 type closeableStore interface {
@@ -54,7 +55,7 @@ func executeBackend(ctx context.Context, cfg policy.Config, request commandReque
 	if client == nil {
 		client = beads.Client{
 			Bin:       firstNonEmpty(getenv("MORPH_BEADS_BIN"), cfg.Backend.BeadsBin),
-			Workspace: firstNonEmpty(getenv("MORPH_BEADS_WORKSPACE"), cfg.Backend.BeadsWorkspace),
+			Workspace: resolveWorkspace(cfg, request.Project, getenv),
 			Timeout:   30 * time.Second,
 			Profile:   profile,
 		}
@@ -93,7 +94,7 @@ func executeBackend(ctx context.Context, cfg policy.Config, request commandReque
 		if err != nil {
 			return "", err
 		}
-		if err := store.CreateAssignment(ctx, runtime.CreateAssignmentRequest{BeadID: beadID, TargetProfile: request.Target, AssignedBy: profile}); err != nil {
+		if err := store.CreateAssignment(ctx, runtime.CreateAssignmentRequest{ProjectID: request.Project, BeadID: beadID, TargetProfile: request.Target, AssignedBy: profile}); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("created bead=%s target=%s kind=%s", beadID, request.Target, request.Kind), nil
@@ -102,12 +103,12 @@ func executeBackend(ctx context.Context, cfg policy.Config, request commandReque
 		if err != nil {
 			return "", err
 		}
-		if err := store.CreateAssignment(ctx, runtime.CreateAssignmentRequest{BeadID: request.Metadata.BeadID, TargetProfile: request.Target, AssignedBy: profile}); err != nil {
+		if err := store.CreateAssignment(ctx, runtime.CreateAssignmentRequest{ProjectID: request.Project, BeadID: request.Metadata.BeadID, TargetProfile: request.Target, AssignedBy: profile}); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("assigned bead=%s target=%s", request.Metadata.BeadID, request.Target), nil
 	case policy.ActionClaim:
-		assignment, err := store.Claim(ctx, runtime.ClaimRequest{BeadID: request.Metadata.BeadID, Profile: profile})
+		assignment, err := store.Claim(ctx, runtime.ClaimRequest{ProjectID: request.Project, BeadID: request.Metadata.BeadID, Profile: profile})
 		if err != nil {
 			return "", err
 		}
@@ -123,7 +124,7 @@ func executeBackend(ctx context.Context, cfg policy.Config, request commandReque
 		}
 		return fmt.Sprintf("progress bead=%s", request.Metadata.BeadID), nil
 	case policy.ActionResult:
-		assignment, err := store.Complete(ctx, runtime.CompleteRequest{BeadID: request.Metadata.BeadID, Profile: profile, Status: request.Metadata.Status})
+		assignment, err := store.Complete(ctx, runtime.CompleteRequest{ProjectID: request.Project, BeadID: request.Metadata.BeadID, Profile: profile, Status: request.Metadata.Status})
 		if err != nil {
 			return "", err
 		}
@@ -176,6 +177,8 @@ func executeBackend(ctx context.Context, cfg policy.Config, request commandReque
 			return "", fmt.Errorf("encode health output: %w", err)
 		}
 		return string(data), nil
+	case policy.ActionReconcile:
+		return runReconcile(ctx, request.Project, client, store)
 	default:
 		return "", fmt.Errorf("backend execution for %s is not implemented yet", request.Action)
 	}
@@ -223,10 +226,21 @@ func auditDenied(ctx context.Context, cfg policy.Config, request commandRequest,
 		return
 	}
 	_ = store.AuditViolation(ctx, runtime.AuditViolationRequest{
+		ProjectID:     request.Project,
 		Profile:       profile,
 		Action:        string(request.Action),
 		TargetProfile: request.Target,
 		BeadID:        request.Metadata.BeadID,
 		Reason:        reason.Error(),
 	})
+}
+
+func resolveWorkspace(cfg policy.Config, projectID string, getenv Getenv) string {
+	if workspace := firstNonEmpty(getenv("MORPH_BEADS_WORKSPACE")); workspace != "" {
+		return workspace
+	}
+	if project, ok := cfg.Projects[projectID]; ok && strings.TrimSpace(project.Workspace) != "" {
+		return strings.TrimSpace(project.Workspace)
+	}
+	return firstNonEmpty(cfg.Backend.BeadsWorkspace, ".")
 }

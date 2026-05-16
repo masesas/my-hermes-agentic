@@ -34,6 +34,9 @@ ai-agent/
 │   ├── VPS_DEPLOYMENT.md           # VPS deployment guide
 │   ├── DISCORD_SETUP.md            # Discord bot/channel setup
 │   ├── AUTONOMOUS_DISCORD_AGENTS.md # Autonomous Discord behavior
+│   ├── AGENT_ROLE_ENFORCEMENT.md    # Role enforcement and reset runbook
+│   ├── BEADS_SQLITE_RECONCILE_PLAN.md # Planned drift reconciliation
+│   ├── MORPH_TASK_MULTI_PROJECT.md # Multi-project task namespace guide
 │   └── agent/
 │       └── begin.md                # Original setup prompt (v2)
 ├── scripts/                        # Idempotent setup & ops scripts
@@ -48,6 +51,7 @@ ai-agent/
 │   ├── 46-install-beads.sh         # Install real Beads bd binary safely
 │   ├── 47-install-morph-task.sh    # Build/install role-enforcing task wrapper
 │   ├── 48-build-morph-task.sh      # Build distributable morph-task binaries
+│   ├── 49-reset-agent-memory.sh    # Selectively reset learned agent state
 │   ├── 50-setup-systemd.sh         # 9Router/system service installation
 │   ├── 55-setup-systemd-per-profile.sh # Hermes user-level gateway services
 │   ├── 60-setup-caddy.sh           # Caddy reverse proxy setup when WEB_SERVER=caddy
@@ -84,6 +88,9 @@ ai-agent/
 | `ARCHITECTURE.md` | Canonical architecture reference. Mermaid diagrams, memory budget, task queue schema, orchestration patterns, failure handling, roadmap. |
 | `AGENT_REGISTRY.md` | Master list of all agent profiles with capabilities, LLM assignments, and lifecycle status. |
 | `docs/ADDING_NEW_AGENT.md` | Step-by-step operational runbook for adding a new Hermes/Discord/9Router agent. |
+| `docs/AGENT_ROLE_ENFORCEMENT.md` | Reset and enforcement runbook for learned behavior drift. |
+| `docs/BEADS_SQLITE_RECONCILE_PLAN.md` | Planned Beads/SQLite drift detection and repair design. |
+| `docs/MORPH_TASK_MULTI_PROJECT.md` | Multi-project namespace and workspace guide for `morph-task`. |
 
 ---
 
@@ -118,6 +125,8 @@ Scripts are numbered for sequential execution during initial VPS setup:
 47-install-morph-task   Build/install morph-task wrapper and role policy
         |
 48-build-morph-task    Optional local/CI release binary build
+        |
+49-reset-agent-memory Optional selective reset for learned behavior drift
         |
 50-setup-systemd         Install 9Router/system services
         |

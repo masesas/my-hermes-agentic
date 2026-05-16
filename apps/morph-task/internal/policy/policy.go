@@ -8,17 +8,18 @@ import (
 type Action string
 
 const (
-	ActionCreate   Action = "create"
-	ActionAssign   Action = "assign"
-	ActionReady    Action = "ready"
-	ActionShow     Action = "show"
-	ActionClaim    Action = "claim"
-	ActionProgress Action = "progress"
-	ActionResult   Action = "result"
-	ActionClose    Action = "close"
-	ActionDoctor   Action = "doctor"
-	ActionAudit    Action = "audit"
-	ActionHealth   Action = "health"
+	ActionCreate    Action = "create"
+	ActionAssign    Action = "assign"
+	ActionReady     Action = "ready"
+	ActionShow      Action = "show"
+	ActionClaim     Action = "claim"
+	ActionProgress  Action = "progress"
+	ActionResult    Action = "result"
+	ActionClose     Action = "close"
+	ActionDoctor    Action = "doctor"
+	ActionAudit     Action = "audit"
+	ActionHealth    Action = "health"
+	ActionReconcile Action = "reconcile"
 )
 
 var (
@@ -27,6 +28,7 @@ var (
 	ErrActionDenied   = errors.New("action denied")
 	ErrTargetDenied   = errors.New("target denied")
 	ErrKindDenied     = errors.New("task kind denied")
+	ErrProjectDenied  = errors.New("project denied")
 )
 
 type Request struct {
@@ -34,11 +36,19 @@ type Request struct {
 	Action  Action
 	Target  string
 	Kind    string
+	Project string
 }
 
 type Config struct {
 	Backend  Backend
+	Projects map[string]Project
 	Profiles map[string]Profile
+}
+
+type Project struct {
+	Workspace       string
+	HandoffDir      string
+	AllowedProfiles []string
 }
 
 type Backend struct {
@@ -65,6 +75,9 @@ func DefaultConfig() Config {
 			BeadsBin:       "bd",
 			BeadsWorkspace: ".",
 			RuntimeDB:      ":memory:",
+		},
+		Projects: map[string]Project{
+			"default": {Workspace: ".", AllowedProfiles: []string{"orchestrator", "researcher", "executor"}},
 		},
 		Profiles: map[string]Profile{
 			"orchestrator": {
@@ -96,6 +109,15 @@ func (c Config) Authorize(request Request) error {
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownProfile, request.Profile)
 	}
+	if request.Project != "" {
+		project, ok := c.Projects[request.Project]
+		if !ok {
+			return fmt.Errorf("%w: %s", ErrProjectDenied, request.Project)
+		}
+		if len(project.AllowedProfiles) > 0 && !contains(project.AllowedProfiles, request.Profile) {
+			return fmt.Errorf("%w: profile %s cannot access project %s", ErrProjectDenied, request.Profile, request.Project)
+		}
+	}
 
 	switch request.Action {
 	case ActionCreate:
@@ -108,7 +130,7 @@ func (c Config) Authorize(request Request) error {
 			return fmt.Errorf("%w: profile %s cannot assign tasks", ErrActionDenied, request.Profile)
 		}
 		return authorizeKind(profile, request)
-	case ActionReady, ActionShow, ActionDoctor, ActionAudit, ActionHealth:
+	case ActionReady, ActionShow, ActionDoctor, ActionAudit, ActionHealth, ActionReconcile:
 		return nil
 	case ActionClaim:
 		if len(profile.CanClaimTargets) == 0 {

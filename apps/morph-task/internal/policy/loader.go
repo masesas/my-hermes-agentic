@@ -9,7 +9,14 @@ import (
 
 type policyFile struct {
 	Backend  backendFile            `yaml:"backend"`
+	Projects map[string]projectFile `yaml:"projects"`
 	Profiles map[string]profileFile `yaml:"profiles"`
+}
+
+type projectFile struct {
+	Workspace       string   `yaml:"workspace"`
+	HandoffDir      string   `yaml:"handoff_dir"`
+	AllowedProfiles []string `yaml:"allowed_profiles"`
 }
 
 type backendFile struct {
@@ -52,8 +59,16 @@ func LoadFile(path string) (Config, error) {
 			RuntimeDB:      file.Backend.RuntimeDB,
 			HandoffDir:     file.Backend.HandoffDir,
 		},
+		Projects: make(map[string]Project, len(file.Projects)),
 		Profiles: make(map[string]Profile, len(file.Profiles)),
 	}
+	for name, project := range file.Projects {
+		config.Projects[name] = Project{Workspace: project.Workspace, HandoffDir: project.HandoffDir, AllowedProfiles: project.AllowedProfiles}
+	}
+	if len(config.Projects) == 0 {
+		config.Projects["default"] = Project{Workspace: config.Backend.BeadsWorkspace, HandoffDir: config.Backend.HandoffDir, AllowedProfiles: []string{"orchestrator", "researcher", "executor"}}
+	}
+
 	for name, profile := range file.Profiles {
 		config.Profiles[name] = Profile{
 			Role:                  profile.Role,

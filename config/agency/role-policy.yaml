@@ -56,3 +56,12 @@ profiles:
     allowed_task_kinds:
       - execution
       - verification
+
+projects:
+  default:
+    workspace: /home/hermes/workspace/default
+    handoff_dir: /var/lib/morph-agency/handoff/default
+    allowed_profiles:
+      - orchestrator
+      - researcher
+      - executor

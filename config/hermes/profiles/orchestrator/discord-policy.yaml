@@ -19,3 +19,13 @@ channels:
   executor: executor
   status: status
   escalation: escalation
+
+source_controls:
+  accepts_human_tasks: true
+  accepts_direct_human_worker_tasks: false
+  allowed_bot_senders:
+    - MorphResearcher
+    - MorphExecutor
+  denied_bot_senders: []
+  required_task_id_from_bots: true
+  worker_to_worker_messages: denied

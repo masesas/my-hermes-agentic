@@ -21,6 +21,7 @@ type Store struct {
 }
 
 type Assignment struct {
+	ProjectID     string
 	BeadID        string
 	TargetProfile string
 	AssignedBy    string
@@ -32,23 +33,27 @@ type Assignment struct {
 }
 
 type CreateAssignmentRequest struct {
+	ProjectID     string
 	BeadID        string
 	TargetProfile string
 	AssignedBy    string
 }
 
 type ClaimRequest struct {
-	BeadID  string
-	Profile string
+	ProjectID string
+	BeadID    string
+	Profile   string
 }
 
 type CompleteRequest struct {
-	BeadID  string
-	Profile string
-	Status  string
+	ProjectID string
+	BeadID    string
+	Profile   string
+	Status    string
 }
 
 type AuditViolationRequest struct {
+	ProjectID     string
 	Profile       string
 	Action        string
 	TargetProfile string
@@ -81,16 +86,18 @@ func (s *Store) Migrate(ctx context.Context) error {
 	statements := []string{
 		`PRAGMA foreign_keys = ON`,
 		`CREATE TABLE IF NOT EXISTS runtime_assignments (
-			bead_id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL DEFAULT 'default',
+			bead_id TEXT NOT NULL,
 			target_profile TEXT NOT NULL,
 			assigned_by TEXT NOT NULL DEFAULT 'orchestrator',
 			status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'claimed', 'succeeded', 'failed', 'blocked', 'partial', 'cancelled')),
 			claimed_by TEXT,
 			claimed_at TEXT,
 			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			PRIMARY KEY(project_id, bead_id)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_runtime_assignments_target_status ON runtime_assignments(target_profile, status, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_runtime_assignments_target_status ON runtime_assignments(project_id, target_profile, status, created_at)`,
 		`CREATE TABLE IF NOT EXISTS runtime_locks (
 			name TEXT PRIMARY KEY,
 			owner_profile TEXT NOT NULL,
@@ -117,6 +124,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS policy_violations (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			project_id TEXT NOT NULL DEFAULT 'default',
 			profile TEXT NOT NULL,
 			action TEXT NOT NULL,
 			target_profile TEXT,
@@ -124,7 +132,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 			reason TEXT NOT NULL,
 			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_policy_violations_profile ON policy_violations(profile, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_policy_violations_profile ON policy_violations(project_id, profile, created_at)`,
 	}
 	for _, statement := range statements {
 		if _, err := s.db.ExecContext(ctx, statement); err != nil {
@@ -135,7 +143,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 }
 
 func (s *Store) AuditViolation(ctx context.Context, request AuditViolationRequest) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO policy_violations (profile, action, target_profile, bead_id, reason) VALUES (?, ?, ?, ?, ?)`, request.Profile, request.Action, request.TargetProfile, request.BeadID, request.Reason)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO policy_violations (project_id, profile, action, target_profile, bead_id, reason) VALUES (?, ?, ?, ?, ?, ?)`, defaultProject(request.ProjectID), request.Profile, request.Action, request.TargetProfile, request.BeadID, request.Reason)
 	if err != nil {
 		return fmt.Errorf("audit policy violation for profile %s action %s: %w", request.Profile, request.Action, err)
 	}
@@ -154,7 +162,7 @@ func (s *Store) CreateAssignment(ctx context.Context, request CreateAssignmentRe
 	if assignedBy == "" {
 		assignedBy = "orchestrator"
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO runtime_assignments (bead_id, target_profile, assigned_by) VALUES (?, ?, ?)`, request.BeadID, request.TargetProfile, assignedBy)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO runtime_assignments (project_id, bead_id, target_profile, assigned_by) VALUES (?, ?, ?, ?)`, defaultProject(request.ProjectID), request.BeadID, request.TargetProfile, assignedBy)
 	if err != nil {
 		return fmt.Errorf("create assignment %s: %w", request.BeadID, err)
 	}
@@ -168,7 +176,7 @@ func (s *Store) Claim(ctx context.Context, request ClaimRequest) (Assignment, er
 	}
 	defer tx.Rollback()
 
-	assignment, err := getAssignment(ctx, tx, request.BeadID)
+	assignment, err := getAssignment(ctx, tx, defaultProject(request.ProjectID), request.BeadID)
 	if err != nil {
 		return Assignment{}, err
 	}
@@ -182,7 +190,7 @@ func (s *Store) Claim(ctx context.Context, request ClaimRequest) (Assignment, er
 	now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 	result, err := tx.ExecContext(ctx, `UPDATE runtime_assignments
 		SET status = 'claimed', claimed_by = ?, claimed_at = ?, updated_at = ?
-		WHERE bead_id = ? AND target_profile = ? AND status = 'pending' AND claimed_by IS NULL`, request.Profile, now, now, request.BeadID, request.Profile)
+		WHERE project_id = ? AND bead_id = ? AND target_profile = ? AND status = 'pending' AND claimed_by IS NULL`, request.Profile, now, now, defaultProject(request.ProjectID), request.BeadID, request.Profile)
 	if err != nil {
 		return Assignment{}, fmt.Errorf("claim assignment %s: %w", request.BeadID, err)
 	}
@@ -194,7 +202,7 @@ func (s *Store) Claim(ctx context.Context, request ClaimRequest) (Assignment, er
 		return Assignment{}, fmt.Errorf("%w: bead %s", ErrAlreadyClaimed, request.BeadID)
 	}
 
-	assignment, err = getAssignment(ctx, tx, request.BeadID)
+	assignment, err = getAssignment(ctx, tx, defaultProject(request.ProjectID), request.BeadID)
 	if err != nil {
 		return Assignment{}, err
 	}
@@ -211,7 +219,7 @@ func (s *Store) Complete(ctx context.Context, request CompleteRequest) (Assignme
 	}
 	defer tx.Rollback()
 
-	assignment, err := getAssignment(ctx, tx, request.BeadID)
+	assignment, err := getAssignment(ctx, tx, defaultProject(request.ProjectID), request.BeadID)
 	if err != nil {
 		return Assignment{}, err
 	}
@@ -225,7 +233,7 @@ func (s *Store) Complete(ctx context.Context, request CompleteRequest) (Assignme
 	now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 	result, err := tx.ExecContext(ctx, `UPDATE runtime_assignments
 		SET status = ?, updated_at = ?
-		WHERE bead_id = ? AND target_profile = ? AND claimed_by = ?`, request.Status, now, request.BeadID, request.Profile, request.Profile)
+		WHERE project_id = ? AND bead_id = ? AND target_profile = ? AND claimed_by = ?`, request.Status, now, defaultProject(request.ProjectID), request.BeadID, request.Profile, request.Profile)
 	if err != nil {
 		return Assignment{}, fmt.Errorf("complete assignment %s: %w", request.BeadID, err)
 	}
@@ -237,7 +245,7 @@ func (s *Store) Complete(ctx context.Context, request CompleteRequest) (Assignme
 		return Assignment{}, fmt.Errorf("%w: bead %s", ErrNotAssigned, request.BeadID)
 	}
 
-	assignment, err = getAssignment(ctx, tx, request.BeadID)
+	assignment, err = getAssignment(ctx, tx, defaultProject(request.ProjectID), request.BeadID)
 	if err != nil {
 		return Assignment{}, err
 	}
@@ -248,18 +256,19 @@ func (s *Store) Complete(ctx context.Context, request CompleteRequest) (Assignme
 }
 
 func (s *Store) GetAssignment(ctx context.Context, beadID string) (Assignment, error) {
-	return getAssignment(ctx, s.db, beadID)
+	return getAssignment(ctx, s.db, "default", beadID)
 }
 
 type queryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-func getAssignment(ctx context.Context, queryer queryer, beadID string) (Assignment, error) {
+func getAssignment(ctx context.Context, queryer queryer, projectID string, beadID string) (Assignment, error) {
 	var assignment Assignment
-	err := queryer.QueryRowContext(ctx, `SELECT bead_id, target_profile, assigned_by, status,
+	err := queryer.QueryRowContext(ctx, `SELECT project_id, bead_id, target_profile, assigned_by, status,
 		COALESCE(claimed_by, ''), COALESCE(claimed_at, ''), created_at, updated_at
-		FROM runtime_assignments WHERE bead_id = ?`, beadID).Scan(
+		FROM runtime_assignments WHERE project_id = ? AND bead_id = ?`, defaultProject(projectID), beadID).Scan(
+		&assignment.ProjectID,
 		&assignment.BeadID,
 		&assignment.TargetProfile,
 		&assignment.AssignedBy,
@@ -280,6 +289,7 @@ func getAssignment(ctx context.Context, queryer queryer, beadID string) (Assignm
 
 type PolicyViolation struct {
 	ID            int64
+	ProjectID     string
 	Profile       string
 	Action        string
 	TargetProfile string
@@ -298,7 +308,7 @@ func (s *Store) ListPolicyViolations(ctx context.Context, limit int) ([]PolicyVi
 	if limit <= 0 || limit > 1000 {
 		limit = 20
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, profile, action, COALESCE(target_profile, ''), COALESCE(bead_id, ''), reason, created_at
+	rows, err := s.db.QueryContext(ctx, `SELECT id, project_id, profile, action, COALESCE(target_profile, ''), COALESCE(bead_id, ''), reason, created_at
 		FROM policy_violations ORDER BY id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list policy violations: %w", err)
@@ -308,7 +318,7 @@ func (s *Store) ListPolicyViolations(ctx context.Context, limit int) ([]PolicyVi
 	var violations []PolicyViolation
 	for rows.Next() {
 		var violation PolicyViolation
-		if err := rows.Scan(&violation.ID, &violation.Profile, &violation.Action, &violation.TargetProfile, &violation.BeadID, &violation.Reason, &violation.CreatedAt); err != nil {
+		if err := rows.Scan(&violation.ID, &violation.ProjectID, &violation.Profile, &violation.Action, &violation.TargetProfile, &violation.BeadID, &violation.Reason, &violation.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan policy violation: %w", err)
 		}
 		violations = append(violations, violation)
@@ -360,4 +370,34 @@ func (s *Store) HealthSummary(ctx context.Context) (HealthSummary, error) {
 		return summary, fmt.Errorf("iterate profile health: %w", err)
 	}
 	return summary, nil
+}
+
+func defaultProject(projectID string) string {
+	if projectID == "" {
+		return "default"
+	}
+	return projectID
+}
+
+func (s *Store) ListAssignments(ctx context.Context, projectID string) ([]Assignment, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT project_id, bead_id, target_profile, assigned_by, status,
+		COALESCE(claimed_by, ''), COALESCE(claimed_at, ''), created_at, updated_at
+		FROM runtime_assignments WHERE project_id = ? ORDER BY created_at`, defaultProject(projectID))
+	if err != nil {
+		return nil, fmt.Errorf("list assignments for project %s: %w", defaultProject(projectID), err)
+	}
+	defer rows.Close()
+
+	var assignments []Assignment
+	for rows.Next() {
+		var assignment Assignment
+		if err := rows.Scan(&assignment.ProjectID, &assignment.BeadID, &assignment.TargetProfile, &assignment.AssignedBy, &assignment.Status, &assignment.ClaimedBy, &assignment.ClaimedAt, &assignment.CreatedAt, &assignment.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan assignment: %w", err)
+		}
+		assignments = append(assignments, assignment)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate assignments: %w", err)
+	}
+	return assignments, nil
 }

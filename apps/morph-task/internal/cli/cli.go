@@ -50,6 +50,7 @@ func Run(options Options) int {
 	flags.SetOutput(stderr)
 	profileOverride := flags.String("profile", "", "active Morph profile; defaults to MORPH_PROFILE")
 	policyPath := flags.String("policy", "", "path to role-policy.yaml; defaults to MORPH_ROLE_POLICY")
+	projectOverride := flags.String("project", "", "active Morph project; defaults to MORPH_PROJECT or default")
 	showVersion := flags.Bool("version", false, "print version")
 	flags.Usage = func() { writeUsage(stderr) }
 
@@ -77,6 +78,7 @@ func Run(options Options) int {
 		return ExitUsage
 	}
 	request.Profile = profile
+	request.Project = resolveProject(getenv, *projectOverride)
 
 	cfg, err := loadPolicy(getenv, *policyPath)
 	if err != nil {
@@ -97,6 +99,17 @@ func Run(options Options) int {
 	}
 	fmt.Fprintln(stdout, message)
 	return ExitOK
+}
+
+func resolveProject(getenv Getenv, override string) string {
+	project := strings.TrimSpace(override)
+	if project == "" {
+		project = strings.TrimSpace(getenv("MORPH_PROJECT"))
+	}
+	if project == "" {
+		project = "default"
+	}
+	return project
 }
 
 func loadPolicy(getenv Getenv, override string) (policy.Config, error) {
@@ -228,6 +241,11 @@ func parseCommand(args []string) (commandRequest, error) {
 		if err := flags.Parse(args[1:]); err != nil {
 			return commandRequest{}, err
 		}
+	case policy.ActionReconcile:
+		flags := newCommandFlagSet(command)
+		if err := flags.Parse(args[1:]); err != nil {
+			return commandRequest{}, err
+		}
 	case policy.ActionDoctor:
 		flags := newCommandFlagSet(command)
 		if err := flags.Parse(args[1:]); err != nil {
@@ -275,7 +293,7 @@ func writeUsage(writer io.Writer) {
 	fmt.Fprintf(writer, "morph-task %s\n\n", Version)
 	fmt.Fprintln(writer, "Role-enforcing wrapper for Morph agent task operations.")
 	fmt.Fprintln(writer, "\nUsage:")
-	fmt.Fprintln(writer, "  morph-task [--profile profile] [--policy path] <command> [flags]")
+	fmt.Fprintln(writer, "  morph-task [--profile profile] [--project project] [--policy path] <command> [flags]")
 	fmt.Fprintln(writer, "\nCommands:")
 	fmt.Fprintln(writer, "  create    Authorize creating a Beads-backed task")
 	fmt.Fprintln(writer, "  assign    Authorize assigning a task")
@@ -288,6 +306,7 @@ func writeUsage(writer io.Writer) {
 	fmt.Fprintln(writer, "  doctor    Validate Beads/runtime wiring")
 	fmt.Fprintln(writer, "  audit     Show recent policy violations")
 	fmt.Fprintln(writer, "  health    Show runtime health summary")
+	fmt.Fprintln(writer, "  reconcile Compare Beads ready tasks with runtime assignments")
 	fmt.Fprintln(writer, "\nOnly create and claim execute backends today; other commands remain pending.")
 }
 

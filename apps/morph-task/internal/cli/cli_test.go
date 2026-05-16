@@ -111,6 +111,9 @@ func TestRunCreatesBeadAndAssignment(t *testing.T) {
 	if beadsClient.createOptions.Target != "executor" {
 		t.Fatalf("create target = %q; want executor", beadsClient.createOptions.Target)
 	}
+	if store.created.ProjectID != "default" {
+		t.Fatalf("assignment project = %q; want default", store.created.ProjectID)
+	}
 	if store.created.BeadID != "task-1" {
 		t.Fatalf("assignment bead = %q; want task-1", store.created.BeadID)
 	}
@@ -352,6 +355,73 @@ func TestRunAuditAndHealth(t *testing.T) {
 	}
 }
 
+func TestRunUsesProjectFlag(t *testing.T) {
+	policyPath := writePolicyFixture(t, `
+version: 1
+projects:
+  client-a:
+    workspace: /tmp/client-a
+    allowed_profiles:
+      - orchestrator
+      - executor
+profiles:
+  orchestrator:
+    role: task_router
+    can_create: true
+    allowed_task_kinds:
+      - execution
+  executor:
+    role: execution_worker
+    can_claim_targets:
+      - executor
+    can_write_result_targets:
+      - executor
+    allowed_task_kinds:
+      - execution
+`)
+	beadsClient := &fakeBeads{createResult: beads.Result{Stdout: `{"id":"task-9"}`}}
+	store := &fakeStore{}
+
+	stdout, stderr, code := runCLI(t, runOptions{
+		args:  []string{"--project", "client-a", "create", "--target", "executor", "--kind", "execution", "--title", "Project scoped"},
+		env:   map[string]string{"MORPH_PROFILE": "orchestrator", "MORPH_ROLE_POLICY": policyPath},
+		beads: beadsClient,
+		store: store,
+	})
+
+	if code != ExitOK {
+		t.Fatalf("Run() code = %d; want %d; stderr=%s", code, ExitOK, stderr)
+	}
+	if !strings.Contains(stdout, "created bead=task-9") {
+		t.Fatalf("stdout = %q; want created", stdout)
+	}
+	if store.created.ProjectID != "client-a" {
+		t.Fatalf("assignment project = %q; want client-a", store.created.ProjectID)
+	}
+}
+
+func TestRunReconcileReportsDrift(t *testing.T) {
+	beadsClient := &fakeBeads{readyResult: beads.Result{Stdout: `[{"id":"task-ready"}]`}}
+	store := &fakeStore{assignments: []runtime.Assignment{{ProjectID: "client-a", BeadID: "task-runtime", TargetProfile: "executor", Status: "pending"}}}
+
+	stdout, stderr, code := runCLI(t, runOptions{
+		args:  []string{"--project", "client-a", "reconcile"},
+		env:   map[string]string{"MORPH_PROFILE": "orchestrator", "MORPH_ROLE_POLICY": writeProjectPolicyFixture(t)},
+		beads: beadsClient,
+		store: store,
+	})
+
+	if code != ExitOK {
+		t.Fatalf("Run() code = %d; want %d; stderr=%s", code, ExitOK, stderr)
+	}
+	if !strings.Contains(stdout, "bead_missing_runtime_assignment") {
+		t.Fatalf("stdout = %q; want missing runtime issue", stdout)
+	}
+	if !strings.Contains(stdout, "task-ready") {
+		t.Fatalf("stdout = %q; want ready bead id", stdout)
+	}
+}
+
 func TestRunRequiresProfile(t *testing.T) {
 	_, stderr, code := runCLI(t, runOptions{args: []string{"ready"}, env: map[string]string{}})
 
@@ -510,6 +580,7 @@ type fakeStore struct {
 	completeAssignment runtime.Assignment
 	violations         []runtime.PolicyViolation
 	health             runtime.HealthSummary
+	assignments        []runtime.Assignment
 	audit              runtime.AuditViolationRequest
 	migrateErr         error
 	createErr          error
@@ -550,4 +621,28 @@ func (f *fakeStore) ListPolicyViolations(ctx context.Context, limit int) ([]runt
 
 func (f *fakeStore) HealthSummary(ctx context.Context) (runtime.HealthSummary, error) {
 	return f.health, nil
+}
+
+func (f *fakeStore) ListAssignments(ctx context.Context, projectID string) ([]runtime.Assignment, error) {
+	return f.assignments, nil
+}
+
+func writeProjectPolicyFixture(t *testing.T) string {
+	t.Helper()
+	return writePolicyFixture(t, `
+version: 1
+projects:
+  client-a:
+    workspace: /tmp/client-a
+    allowed_profiles:
+      - orchestrator
+profiles:
+  orchestrator:
+    role: task_router
+    can_create: true
+    can_assign: true
+    can_close: true
+    allowed_task_kinds:
+      - execution
+`)
 }

@@ -64,3 +64,22 @@ func TestRoleBoundaryRegressionMatrix(t *testing.T) {
 		})
 	}
 }
+
+func TestProjectBoundaryRegression(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Projects["client-a"] = Project{AllowedProfiles: []string{"orchestrator", "executor"}}
+
+	if err := cfg.Authorize(Request{Profile: "executor", Action: ActionClaim, Target: "executor", Kind: "execution", Project: "client-a"}); err != nil {
+		t.Fatalf("Authorize() executor client-a error = %v; want nil", err)
+	}
+
+	err := cfg.Authorize(Request{Profile: "researcher", Action: ActionClaim, Target: "researcher", Kind: "research", Project: "client-a"})
+	if !errors.Is(err, ErrProjectDenied) {
+		t.Fatalf("Authorize() researcher client-a error = %v; want %v", err, ErrProjectDenied)
+	}
+
+	err = cfg.Authorize(Request{Profile: "executor", Action: ActionClaim, Target: "executor", Kind: "execution", Project: "missing"})
+	if !errors.Is(err, ErrProjectDenied) {
+		t.Fatalf("Authorize() missing project error = %v; want %v", err, ErrProjectDenied)
+	}
+}
