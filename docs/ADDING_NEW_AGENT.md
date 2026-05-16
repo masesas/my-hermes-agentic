@@ -172,7 +172,7 @@ compression:
   threshold: 0.45
 
 display:
-  streaming: true
+  streaming: false
 
 approvals:
   mode: smart
@@ -198,8 +198,8 @@ gateway:
       token: ${DISCORD_BOT_TOKEN}
 
 streaming:
-  enabled: true
-  transport: edit
+  enabled: false
+  transport: final
 
 group_sessions_per_user: true
 ```

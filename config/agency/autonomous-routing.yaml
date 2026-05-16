@@ -61,9 +61,32 @@ profiles:
       - write_task_result
 
 discord:
+  # ── Addressing semantics ──────────────────────────────────────────
+  # Mention is required UNLESS the message is in the bot's owner_channel.
   default_require_mention: true
+  # Inside a thread, prior participation does NOT imply addressing. The bot
+  # must be explicitly @mentioned in the latest message to respond. This
+  # prevents "all participants reply when nobody is mentioned" behavior.
+  thread_addressing_mode: explicit_mention_only
+  thread_participation_implies_addressing: false
+  # When multiple bots could potentially respond, only the bot whose
+  # owner_channel matches the parent channel responds to un-mentioned messages
+  # from humans. Other bots stay silent.
+  unmentioned_human_message_owner_only: true
+  # When a message explicitly mentions one bot, all other bots stay silent
+  # even if they were participants of the thread.
+  defer_when_other_agent_mentioned: true
   auto_thread: true
   ignore_bots_by_default: true
+
+  # ── Owner channel map (channel -> profile that owns it) ───────────
+  # Used to resolve "who is the default responder" in a given channel/thread.
+  owner_channel_map:
+    orchestrator: orchestrator
+    researcher: researcher
+    executor: executor
+
+  # ── Bot-to-bot allow list ─────────────────────────────────────────
   allowed_bot_senders:
     researcher:
       - MorphOrchestrator
@@ -75,6 +98,19 @@ discord:
   progress_channels:
     status: status
     escalation: escalation
+
+projects:
+  default_project: default
+  # Discord thread-name convention: the orchestrator parses the thread title to
+  # determine the active project. Format: "proj/<project>/<topic>".
+  thread_name_pattern: '^proj/(?P<project>[a-z0-9][a-z0-9._-]{0,63})(/.*)?$'
+  # Optional explicit mapping from thread or channel topic to project name.
+  # This list is consulted before the regex above.
+  overrides: []
+  # If no project can be inferred and the message is not in a project thread,
+  # the orchestrator MUST ask the user to specify a project. Workers MUST
+  # reject any task hand-off without an explicit project.
+  require_explicit_project: true
 
 message_contract:
   agent_to_agent:

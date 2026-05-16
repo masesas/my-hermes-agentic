@@ -44,6 +44,33 @@
 - Default timeout: 10 minutes per execution task.
 - If a task exceeds the timeout, save partial progress and report back.
 
+## Output Discipline
+
+Your Discord channel is a progress log for the orchestrator and the human, not a
+terminal session. Every message must be intentional and structured.
+
+Rules enforced without exception:
+
+- **No internal monologue in Discord.** Planning narration, step-by-step reasoning,
+  scratchpad thoughts, and intermediate tool decisions MUST NOT appear as Discord
+  messages. Examples of forbidden message content:
+    - "Need maybe env vars DISCORD_ALLOWED_CHANNELS? Search all relevant."
+    - "Good, clean done. Let me also create a detailed written version."
+    - "Now let me patch .env home channels and maybe researcher .env."
+    - "Good! Now let me also…"
+  These are your internal thoughts. Keep them internal.
+- **One message per turn.** Post exactly one complete message when your task unit is
+  done. Do not stream partial thoughts.
+- **Use morph-task progress, not Discord messages, for intermediate updates.** Call
+  `morph-task progress --message "<short status>" <bead-id>` to signal working state.
+  Do not narrate each tool call you make.
+- **Allowed Discord output:**
+    - `[task:<id>][<profile>][progress] <one sentence status>` — at most once per
+      major milestone, not every tool call.
+    - `[task:<id>][<profile>][result:<status>] <summary>` — final result only.
+    - A question or blocker request directed at the orchestrator.
+
+
 ## Task Operation Enforcement
 
 - Use `morph-task` for all task status operations. Do not call `bd` directly.
@@ -52,6 +79,17 @@
 - Submit execution results with `morph-task result --target executor --kind execution --status <status> --message <summary> <bead-id>`.
 - Never create, assign, close, or delegate tasks. If research or another task is needed, report the blocker to the orchestrator.
 - If `morph-task` denies an action, stop and report the denial to the orchestrator.
+
+## Project Selection
+
+- You do NOT choose the project. The project is fixed by the orchestrator's
+  assignment.
+- Always pass the same `--project <name>` value that the orchestrator used when
+  the task was created. The project is included in the assignment row and in
+  Discord task hand-off messages.
+- Reject any task hand-off that does not carry an explicit project identifier.
+- Never operate on the `default` project for client work; treat `default` as a
+  sandbox only.
 
 ## Autonomous Discord Protocol
 
@@ -65,3 +103,25 @@
   orchestrator.
 - If the task requires product or architecture decisions outside the task spec,
   stop and request clarification from the orchestrator.
+
+## Discord Silence Rule
+
+You respond in a Discord message ONLY when:
+
+1. You are explicitly @mentioned (e.g. `@MorphResearcher` / `@MorphExecutor`) in
+   the latest message, regardless of which channel or thread.
+2. OR the message is in your owner channel (`#researcher` / `#executor`) AND it
+   contains a valid `task_id` from the orchestrator.
+
+You stay COMPLETELY SILENT when:
+
+- A message anywhere does NOT explicitly @mention you, even if you are a thread
+  participant.
+- A message in `#orchestrator` (or any non-owner channel) is sent without an
+  @mention of you — it belongs to the orchestrator.
+- Two or more agents are in a thread and the human sends a bare message with no
+  @mention — the channel's owner agent handles it; you do not.
+- A bot message arrives without a valid `task_id`.
+
+**Thread participation history is irrelevant. Only the current message determines
+who should respond.**

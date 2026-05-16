@@ -282,3 +282,175 @@ Rekomendasi production awal:
 - komunikasi antar-agent: SQLite queue
 - Discord: log, progress, escalation, final answer
 - approval manusia: wajib untuk deploy, delete, protected branch push, package install, dan high-cost task
+
+---
+
+## 11. Strict Discord Addressing Model
+
+This section exists because Discord threads can keep multiple bots as thread
+participants. Participation history MUST NOT be treated as message addressing.
+
+### Owner Channel Rule
+
+Each profile has exactly one owner channel:
+
+| Profile | Owner channel | Default responder when no bot is mentioned |
+| --- | --- | --- |
+| `orchestrator` | `#orchestrator` | Yes |
+| `researcher` | `#researcher` | Yes, but only for task-scoped messages |
+| `executor` | `#executor` | Yes, but only for task-scoped messages |
+
+In a thread under `#orchestrator`, an unmentioned human message belongs to the
+orchestrator only. Researcher/executor MUST stay silent even if they were
+previously mentioned in the same thread.
+
+### Mention Rule
+
+If a human explicitly mentions a bot, only that bot responds.
+
+Examples in an `#orchestrator` thread:
+
+| Human message | Expected responders |
+| --- | --- |
+| `what is the status?` | `MorphOrchestrator` only |
+| `@MorphResearcher find the latest docs` | `MorphResearcher` only |
+| `@MorphExecutor apply the patch` | `MorphExecutor` only |
+| `@MorphResearcher @MorphExecutor status?` | Both may respond only if each has a valid task context |
+| `continue` after researcher was mentioned earlier | `MorphOrchestrator` only |
+
+### Config Keys
+
+Shared routing policy:
+
+```yaml
+discord:
+  thread_addressing_mode: explicit_mention_only
+  thread_participation_implies_addressing: false
+  unmentioned_human_message_owner_only: true
+  defer_when_other_agent_mentioned: true
+  owner_channel_map:
+    orchestrator: orchestrator
+    researcher: researcher
+    executor: executor
+```
+
+Per-profile policy:
+
+```yaml
+owner_channel: researcher
+reply_only_in_owner_channel_or_when_mentioned: true
+thread_addressing_mode: explicit_mention_only
+reply_policy:
+  require_mention_outside_owner_channel: true
+  defer_when_other_agent_mentioned: true
+```
+
+Optional per-profile env variables:
+
+```bash
+DISCORD_OWNER_CHANNELS_ORCHESTRATOR=<channel_id_for_orchestrator>
+DISCORD_OWNER_CHANNELS_RESEARCHER=<channel_id_for_researcher>
+DISCORD_OWNER_CHANNELS_EXECUTOR=<channel_id_for_executor>
+```
+
+`DISCORD_OWNER_CHANNELS_*` means: "this bot is the default responder for
+un-mentioned human messages in these channels." It does **not** mean the bot can
+only be mentioned there. A correctly implemented gateway should still allow an
+explicit `@MorphResearcher` or `@MorphExecutor` mention from any channel/thread
+where the bot has Discord access.
+
+If Hermes currently ignores one of these fields or env variables, the same
+behavior is still reinforced in each profile's `SOUL.md`. For a hard technical
+enforcement layer, implement these fields inside the Discord gateway event
+filter before messages are sent to the model:
+
+```text
+if message does not mention this bot:
+    allow only if parent_channel == this_bot.owner_channel
+else:
+    allow regardless of channel, subject to user allow-list and task policy
+```
+
+---
+
+## 12. Preventing Internal Monologue Leaks
+
+Agents MUST NOT post planning narration or scratchpad text to Discord. Examples
+that must never appear as Discord messages:
+
+```text
+Need maybe env vars DISCORD_ALLOWED_CHANNELS? Search all relevant.
+Need patch .env home channels and maybe researcher .env.
+Good, clean done. No /tmp/beads* directories remain.
+Good! Now let me also create a detailed written version for reference:
+```
+
+These lines are internal workflow narration. The user should only see structured
+status, result, blocker, or clarifying question messages.
+
+### Config hardening
+
+Profile configs disable streaming so partial thoughts are not emitted token by
+token:
+
+```yaml
+display:
+  streaming: false
+
+streaming:
+  enabled: false
+  transport: final
+```
+
+### Recommended output contract
+
+Workers should post at most:
+
+```text
+[task:<id>][researcher][progress] Reviewing official docs and source references.
+[task:<id>][researcher][result:succeeded] Findings written to handoff/<task-id>.md.
+```
+
+Orchestrator should post one concise final message to the user after delegated
+work is complete.
+
+### Emergency mitigation
+
+If agents start leaking internal narration again:
+
+```bash
+sudo systemctl stop hermes-researcher-gateway
+sudo systemctl stop hermes-executor-gateway
+sudo ./scripts/42-seed-profile-souls.sh
+sudo ./scripts/44-configure-agent-routing.sh
+sudo ./scripts/55-setup-systemd-per-profile.sh
+```
+
+Then restart only orchestrator first:
+
+```bash
+sudo systemctl restart hermes-orchestrator-gateway
+```
+
+Bring workers back only after a smoke test confirms the orchestrator is the only
+unmentioned responder in `#orchestrator`.
+
+---
+
+## 13. Smoke Test for Discord Addressing
+
+Create a thread under `#orchestrator`.
+
+1. Send: `@MorphOrchestrator say OK only`
+   - Expected: only MorphOrchestrator replies.
+2. Send: `@MorphResearcher say RESEARCHER only`
+   - Expected: only MorphResearcher replies.
+3. Send without mention: `continue`
+   - Expected: only MorphOrchestrator replies.
+4. Send: `@MorphExecutor say EXECUTOR only`
+   - Expected: only MorphExecutor replies.
+5. Send without mention: `status?`
+   - Expected: only MorphOrchestrator replies.
+
+Failure means the Discord gateway is still using thread participation as
+addressing. Apply the owner-channel filter before invoking Hermes.

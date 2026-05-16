@@ -56,6 +56,8 @@ for profile in "${PROFILES[@]}"; do
   upper_profile="$(echo "${profile}" | tr '[:lower:]' '[:upper:]')"
   discord_token_var="DISCORD_BOT_TOKEN_${upper_profile}"
   discord_token="${!discord_token_var:-${DISCORD_BOT_TOKEN:-}}"
+  discord_owner_var="DISCORD_OWNER_CHANNELS_${upper_profile}"
+  discord_owner="${!discord_owner_var:-${DISCORD_OWNER_CHANNELS:-}}"
 
   if [[ -f "${profile_config}/.env.template" ]]; then
     tmp_env="$(mktemp)"
@@ -65,6 +67,7 @@ for profile in "${PROFILES[@]}"; do
       -e "s|^HERMES_MODEL=.*|HERMES_MODEL=${HERMES_MODEL}|" \
       -e "s|^DISCORD_BOT_TOKEN=.*|DISCORD_BOT_TOKEN=${discord_token}|" \
       -e "s|^DISCORD_ALLOWED_USERS=.*|DISCORD_ALLOWED_USERS=${DISCORD_ALLOWED_USERS:-}|" \
+      -e "s|^DISCORD_OWNER_CHANNELS=.*|DISCORD_OWNER_CHANNELS=${discord_owner}|" \
       -e "s|^HERMES_AGENT_NAME=.*|HERMES_AGENT_NAME=hermes-${profile}|" \
       "${profile_config}/.env.template" > "${tmp_env}"
     install -o "${HERMES_USER}" -g "${HERMES_USER}" -m 600 \

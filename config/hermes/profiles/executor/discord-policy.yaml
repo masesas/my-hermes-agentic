@@ -6,13 +6,27 @@ routing_policy: /var/lib/morph-agency/config/autonomous-routing.yaml
 queue_db: /var/lib/morph-agency/queue.db
 handoff_dir: /var/lib/morph-agency/handoff
 
+# ── Channel Ownership ───────────────────────────────────────────────
+# Executor is the default responder ONLY in #executor.
+# Everywhere else (including #orchestrator threads) it requires explicit @mention.
+owner_channel: executor
+reply_only_in_owner_channel_or_when_mentioned: true
+
+# ── Thread Addressing ───────────────────────────────────────────────
+# Being added to a thread as participant does NOT grant implicit addressing.
+# Explicit @MorphExecutor is ALWAYS required, regardless of thread participation history.
+thread_addressing_mode: explicit_mention_only
+
+# ── Reply Policy ────────────────────────────────────────────────────
 reply_policy:
-  require_mention: true
+  require_mention_outside_owner_channel: true
+  defer_when_other_agent_mentioned: true
   auto_thread: true
   ignore_bots_by_default: true
   require_task_id_for_agent_messages: true
   max_reply_depth: 3
 
+# ── Channel Map (read-only reference) ──────────────────────────────
 channels:
   orchestrator: orchestrator
   researcher: researcher
@@ -20,6 +34,7 @@ channels:
   status: status
   escalation: escalation
 
+# ── Source Controls ─────────────────────────────────────────────────
 source_controls:
   accepts_human_tasks: false
   accepts_direct_human_worker_tasks: false
