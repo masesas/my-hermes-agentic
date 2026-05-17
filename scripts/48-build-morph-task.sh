@@ -8,7 +8,7 @@ TARGETS=(
   "linux arm64 morph-task-linux-arm64"
 )
 
-command -v go >/dev/null 2>&1 || die "go binary not found."
+resolve_go_bin
 mkdir -p "${OUT_DIR}"
 
 for target in "${TARGETS[@]}"; do
@@ -16,7 +16,7 @@ for target in "${TARGETS[@]}"; do
   log "Building ${name}..."
   (
     cd "${STARTER_DIR}/apps/morph-task"
-    GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o "${OUT_DIR}/${name}" ./cmd/morph-task
+    GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 "${GO_BIN}" build -trimpath -ldflags='-s -w' -o "${OUT_DIR}/${name}" ./cmd/morph-task
   )
   chmod 755 "${OUT_DIR}/${name}"
 done

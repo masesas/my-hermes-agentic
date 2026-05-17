@@ -12,14 +12,14 @@ BEADS_BIN="${BEADS_BIN:-${BIN_DIR}/bd}"
 BEADS_PACKAGE="${BEADS_PACKAGE:-github.com/gastownhall/beads/cmd/bd@latest}"
 
 id "${HERMES_USER}" >/dev/null 2>&1 || die "User ${HERMES_USER} does not exist. Run 30-install-hermes.sh first."
-command -v go >/dev/null 2>&1 || die "go binary not found. Install Go before installing Beads."
+resolve_go_bin
 
 ensure_dir "${AGENCY_DIR}" "${HERMES_USER}:${HERMES_USER}" 750
 ensure_dir "${BIN_DIR}" "root:${HERMES_USER}" 755
 ensure_dir "/home/${HERMES_USER}/workspace" "${HERMES_USER}:${HERMES_USER}" 755
 
 log "Installing Beads (${BEADS_PACKAGE}) to ${BIN_DIR}..."
-GOBIN="${BIN_DIR}" CGO_ENABLED="${CGO_ENABLED:-1}" go install "${BEADS_PACKAGE}"
+GOBIN="${BIN_DIR}" CGO_ENABLED="${CGO_ENABLED:-1}" "${GO_BIN}" install "${BEADS_PACKAGE}"
 
 [[ -x "${BEADS_BIN}" ]] || die "Beads binary not found after install: ${BEADS_BIN}"
 chown root:"${HERMES_USER}" "${BEADS_BIN}"

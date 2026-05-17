@@ -19,7 +19,7 @@ BD_GUARD_BIN="${BD_GUARD_BIN:-/usr/local/bin/bd}"
 DEFAULT_PROJECT="${MORPH_DEFAULT_PROJECT:-default}"
 
 id "${HERMES_USER}" >/dev/null 2>&1 || die "User ${HERMES_USER} does not exist. Run 30-install-hermes.sh first."
-command -v go >/dev/null 2>&1 || die "go binary not found. Install Go before building morph-task."
+resolve_go_bin
 [[ -d "${MORPH_TASK_SOURCE}" ]] || die "Missing morph-task source at ${MORPH_TASK_SOURCE}."
 [[ -f "${ROLE_POLICY_SOURCE}" ]] || die "Missing role policy at ${ROLE_POLICY_SOURCE}."
 
@@ -29,7 +29,7 @@ ensure_dir "${BIN_DIR}" "root:${HERMES_USER}" 755
 log "Building morph-task CLI..."
 (
   cd "${MORPH_TASK_SOURCE}"
-  go build -o /tmp/morph-task ./cmd/morph-task
+  "${GO_BIN}" build -o /tmp/morph-task ./cmd/morph-task
 )
 install -o root -g "${HERMES_USER}" -m 755 /tmp/morph-task "${BIN_DIR}/morph-task"
 rm -f /tmp/morph-task
