@@ -584,3 +584,38 @@ same Discord events.
 If `DISCORD_BOT_TOKEN`, `NINE_ROUTER_API_KEY`, or provider API keys are pasted into
 logs, chat, GitHub issues, or support channels, treat them as compromised and rotate
 immediately.
+
+### 14.6 Disable Worker Discord Gateways When Owner-Channel Filtering Is Not Enforced
+
+If `researcher` or `executor` replies inside a `#orchestrator` thread without an
+explicit mention, the Hermes Discord gateway version is not enforcing the custom
+`owner_channel` / `thread_addressing_mode` policy. The safe production mode is:
+
+```text
+orchestrator gateway: active
+researcher gateway: disabled/no-op
+executor gateway: disabled/no-op
+```
+
+Apply the no-op worker gateway override:
+
+```bash
+sudo ./scripts/56-disable-worker-discord-gateways.sh
+```
+
+This clears worker `DISCORD_BOT_TOKEN` values in runtime profile `.env` files and
+installs a systemd user drop-in that replaces worker gateway `ExecStart` with
+`/bin/sleep infinity`. This prevents external `hermes --profile <worker> gateway
+start` calls from reconnecting worker bots to Discord while keeping the unit
+visible for diagnostics.
+
+Expected process list after applying:
+
+```text
+hermes_cli.main --profile orchestrator gateway run --replace
+/bin/sleep infinity  # researcher placeholder
+/bin/sleep infinity  # executor placeholder
+```
+
+Workers should still be coordinated via `morph-task` and the SQLite queue rather
+than always-on Discord listeners.
