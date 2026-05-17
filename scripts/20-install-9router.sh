@@ -103,9 +103,10 @@ patch_public_oauth_redirects() {
 
   if grep -q 'http://localhost:${appPort}/callback' "${oauth_modal}"; then
     log "Patching 9Router OAuth browser redirects to use window.location.origin..."
-    sudo -u "${ROUTER_USER}" python3 - <<PY
+    sudo -u "${ROUTER_USER}" python3 - "${oauth_modal}" <<'PY'
 from pathlib import Path
-path = Path(${oauth_modal@Q})
+import sys
+path = Path(sys.argv[1])
 text = path.read_text()
 old = '''      const appPort = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
       let redirectUri;
