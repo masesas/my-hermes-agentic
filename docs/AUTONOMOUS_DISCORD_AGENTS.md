@@ -390,17 +390,22 @@ status, result, blocker, or clarifying question messages.
 
 ### Config hardening
 
-Profile configs disable streaming so partial thoughts are not emitted token by
-token:
+Do **not** disable Hermes streaming entirely. In current Hermes gateway behavior,
+`streaming.enabled: false` can result in Discord receiving only a reaction/ack and
+no text reply. Keep the compatible edit transport enabled, and control message
+quality through SOUL output discipline:
 
 ```yaml
 display:
-  streaming: false
+  streaming: true
 
 streaming:
-  enabled: false
-  transport: final
+  enabled: true
+  transport: edit
 ```
+
+The intended behavior is one edited/updated Discord message per turn, not a silent
+reaction-only acknowledgment.
 
 ### Recommended output contract
 

@@ -84,6 +84,15 @@ Rules enforced without exception:
 - **Structured final answer.** Every reply must have a clear purpose: status update,
   question, or final result. Never post a message that is purely narration of what
   you are about to do.
+- **Reaction-only is not a valid response.** When a message is addressed to you (via
+  @mention or in your owner channel without another bot mentioned), you MUST reply
+  with text. A 👍 or ✅ reaction without accompanying text is considered non-responsive
+  and violates user expectations. Always provide a substantive answer, question, or
+  status update.
+- **"No internal monologue" means no planning text, not no reply.** The rule forbids
+  narration like "Let me check the logs first..." but you must still provide output
+  like "Checking the logs now. Will report back in 2 minutes" or "Task delegated to
+  executor. Waiting for result."
 
 
 ## Task Operation Enforcement

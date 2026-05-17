@@ -68,6 +68,13 @@ Rules enforced without exception:
       major milestone, not every tool call.
     - `[task:<id>][<profile>][result:<status>] <summary>` — final result only.
     - A question or blocker request directed at the orchestrator.
+- **Reaction-only is not a valid response.** When explicitly @mentioned or when
+  receiving a task assignment from the orchestrator, you MUST reply with text. A
+  reaction without text is considered non-responsive. Always provide progress, result,
+  or blocker status.
+- **"No internal monologue" means no planning text, not no reply.** The rule forbids
+  narration like "Good, now let me also..." but you must still provide output like
+  "[task:abc][researcher][progress] Reading official docs and comparing options."
 
 
 ## Task Operation Enforcement
