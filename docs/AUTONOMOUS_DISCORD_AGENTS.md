@@ -459,3 +459,128 @@ Create a thread under `#orchestrator`.
 
 Failure means the Discord gateway is still using thread participation as
 addressing. Apply the owner-channel filter before invoking Hermes.
+
+---
+
+## 14. Known Runtime Pitfalls from VPS Troubleshooting
+
+### 14.1 9Router API Path Is `/api/v1`
+
+For the current 9Router deployment used by this project, the OpenAI-compatible
+API base URL is:
+
+```bash
+NINE_ROUTER_BASE_URL=http://127.0.0.1:20128/api/v1
+```
+
+Not:
+
+```bash
+NINE_ROUTER_BASE_URL=http://127.0.0.1:20128/v1
+```
+
+Validate models:
+
+```bash
+curl -i http://127.0.0.1:20128/api/v1/models \
+  -H "Authorization: Bearer $NINE_ROUTER_API_KEY"
+```
+
+Validate chat:
+
+```bash
+curl -i http://127.0.0.1:20128/api/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $NINE_ROUTER_API_KEY" \
+  -d '{
+    "model": "morph-orchestrator",
+    "messages": [{"role": "user", "content": "Reply exactly: OK"}],
+    "max_tokens": 50
+  }'
+```
+
+### 14.2 Model Combo Names Are Per Profile
+
+This project expects one 9Router combo per active profile:
+
+| Profile | 9Router combo |
+| --- | --- |
+| `orchestrator` | `morph-orchestrator` |
+| `researcher` | `morph-researcher` |
+| `executor` | `morph-executor` |
+
+Set these in root `.env`:
+
+```bash
+HERMES_MODEL_ORCHESTRATOR=morph-orchestrator
+HERMES_MODEL_RESEARCHER=morph-researcher
+HERMES_MODEL_EXECUTOR=morph-executor
+```
+
+`scripts/42-seed-profile-souls.sh` injects each value into the matching profile.
+It also hardcodes `model.default` in runtime `config.yaml` because some Hermes
+gateway versions do not expand `${HERMES_MODEL}` in that field and will send the
+literal string `${HERMES_MODEL}` to 9Router.
+
+Symptom of this bug:
+
+```text
+model=${HERMES_MODEL} summary=HTTP 404: No active credentials for provider: openai
+```
+
+### 14.3 `DISCORD_ALLOWED_USERS` Should Be Explicit
+
+Some Hermes gateway versions treat an empty `DISCORD_ALLOWED_USERS=` as deny-all,
+not allow-all.
+
+Symptom:
+
+```text
+Unauthorized user: <discord_user_id> (<name>) on discord
+```
+
+Fix:
+
+```bash
+sudo sed -i '/^DISCORD_ALLOWED_USERS=/c\DISCORD_ALLOWED_USERS=<your_discord_user_id>' \
+  /home/hermes/.hermes/profiles/orchestrator/.env
+```
+
+Then restart the active gateway service.
+
+### 14.4 User-Level vs System-Level Gateway Services
+
+Two service naming schemes may exist during migration/troubleshooting:
+
+| Type | Service name |
+| --- | --- |
+| User-level Hermes native | `hermes-gateway-orchestrator` |
+| System-level project template | `hermes-orchestrator-gateway` |
+
+Check which one is active before editing env/overrides:
+
+```bash
+sudo -u hermes XDG_RUNTIME_DIR=/run/user/$(id -u hermes) \
+  systemctl --user status hermes-gateway-orchestrator --no-pager
+
+sudo systemctl status hermes-orchestrator-gateway --no-pager
+```
+
+Inspect process environment for the active service:
+
+```bash
+UPID=$(sudo -u hermes XDG_RUNTIME_DIR=/run/user/$(id -u hermes) \
+  systemctl --user show hermes-gateway-orchestrator --property=MainPID --value)
+
+sudo cat /proc/$UPID/environ | tr '\0' '\n' | \
+  grep -E "NINE_ROUTER|HERMES_MODEL|DISCORD_ALLOWED_USERS"
+```
+
+If both services are active, disable one to avoid two bots racing to handle the
+same Discord events.
+
+### 14.5 Rotate Leaked Credentials
+
+If `DISCORD_BOT_TOKEN`, `NINE_ROUTER_API_KEY`, or provider API keys are pasted into
+logs, chat, GitHub issues, or support channels, treat them as compromised and rotate
+immediately.

@@ -4,7 +4,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_root
 load_env
-require_env NINE_ROUTER_API_KEY NINE_ROUTER_BASE_URL HERMES_MODEL
+require_env NINE_ROUTER_API_KEY NINE_ROUTER_BASE_URL
 
 HERMES_USER="${HERMES_USER:-hermes}"
 PROFILES=(orchestrator researcher executor)
@@ -37,15 +37,27 @@ for profile in "${PROFILES[@]}"; do
   fi
 
   # ── config.yaml ──────────────────────────────────────────────────
+  # Resolve per-profile HERMES_MODEL early so we can hardcode model.default
+  # into config.yaml. Hermes does not consistently expand ${HERMES_MODEL}
+  # inside model.default on all gateway versions, so we substitute literally.
+  upper_profile_pre="$(echo "${profile}" | tr '[:lower:]' '[:upper:]')"
+  hermes_model_var_pre="HERMES_MODEL_${upper_profile_pre}"
+  hermes_model_pre="${!hermes_model_var_pre:-${HERMES_MODEL:-morph-${profile}}}"
+
   if [[ -f "${profile_config}/config.yaml" ]]; then
+    tmp_config="$(mktemp)"
+    sed -e 's|^  default: ${HERMES_MODEL}.*|  default: '"${hermes_model_pre}"'|' \
+      "${profile_config}/config.yaml" > "${tmp_config}"
     install -o "${HERMES_USER}" -g "${HERMES_USER}" -m 600 \
-      "${profile_config}/config.yaml" "${profile_home}/config.yaml"
-    log "Installed config.yaml for ${profile}."
+      "${tmp_config}" "${profile_home}/config.yaml"
+    rm -f "${tmp_config}"
+    log "Installed config.yaml for ${profile} (model.default hardcoded to ${hermes_model_pre})."
   else
     # Fall back to the shared config.yaml as a base
     log "No config.yaml at ${profile_config}/config.yaml, using shared default."
     tmp_config="$(mktemp)"
     sed -e "s/hermes-orchestrator/hermes-${profile}/g" \
+        -e 's|^  default: ${HERMES_MODEL}.*|  default: '"${hermes_model_pre}"'|' \
       "${STARTER_DIR}/config/hermes/config.yaml" > "${tmp_config}"
     install -o "${HERMES_USER}" -g "${HERMES_USER}" -m 600 \
       "${tmp_config}" "${profile_home}/config.yaml"
@@ -58,13 +70,15 @@ for profile in "${PROFILES[@]}"; do
   discord_token="${!discord_token_var:-${DISCORD_BOT_TOKEN:-}}"
   discord_owner_var="DISCORD_OWNER_CHANNELS_${upper_profile}"
   discord_owner="${!discord_owner_var:-${DISCORD_OWNER_CHANNELS:-}}"
+  hermes_model_var="HERMES_MODEL_${upper_profile}"
+  hermes_model="${!hermes_model_var:-${HERMES_MODEL:-morph-${profile}}}"
 
   if [[ -f "${profile_config}/.env.template" ]]; then
     tmp_env="$(mktemp)"
     sed \
       -e "s|^NINE_ROUTER_API_KEY=.*|NINE_ROUTER_API_KEY=${NINE_ROUTER_API_KEY}|" \
       -e "s|^NINE_ROUTER_BASE_URL=.*|NINE_ROUTER_BASE_URL=${NINE_ROUTER_BASE_URL}|" \
-      -e "s|^HERMES_MODEL=.*|HERMES_MODEL=${HERMES_MODEL}|" \
+      -e "s|^HERMES_MODEL=.*|HERMES_MODEL=${hermes_model}|" \
       -e "s|^DISCORD_BOT_TOKEN=.*|DISCORD_BOT_TOKEN=${discord_token}|" \
       -e "s|^DISCORD_ALLOWED_USERS=.*|DISCORD_ALLOWED_USERS=${DISCORD_ALLOWED_USERS:-}|" \
       -e "s|^DISCORD_OWNER_CHANNELS=.*|DISCORD_OWNER_CHANNELS=${discord_owner}|" \
@@ -78,7 +92,7 @@ for profile in "${PROFILES[@]}"; do
     cat > "${profile_home}/.env" <<EOF
 NINE_ROUTER_API_KEY=${NINE_ROUTER_API_KEY}
 NINE_ROUTER_BASE_URL=${NINE_ROUTER_BASE_URL}
-HERMES_MODEL=${HERMES_MODEL}
+HERMES_MODEL=${hermes_model}
 DISCORD_BOT_TOKEN=${discord_token}
 HERMES_AGENT_NAME=hermes-${profile}
 HERMES_PROFILE=${profile}
