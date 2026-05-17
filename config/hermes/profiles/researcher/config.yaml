@@ -39,6 +39,9 @@ timezone: Asia/Jakarta
 discord:
   require_mention: true
   auto_thread: true
+  allowed_channels:
+    - "1505267175231983727"  # #researcher only
+  free_response_channels: []
 
 streaming:
   enabled: true
