@@ -5,7 +5,18 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 require_root
 load_env
 
+if [[ ! -x /opt/9router/bin/npm-start ]]; then
+  die "Missing /opt/9router/bin/npm-start. Run 20-install-9router.sh before 50-setup-systemd.sh."
+fi
+
+systemctl stop 9router >/dev/null 2>&1 || true
+systemctl reset-failed 9router >/dev/null 2>&1 || true
+
 install -m 644 "${STARTER_DIR}/systemd/9router.service" /etc/systemd/system/9router.service
+
+if grep -q '/home/router9' /etc/systemd/system/9router.service; then
+  die "Installed 9router.service still references /home/router9; refusing to start broken legacy unit."
+fi
 
 tmp_hermes_unit="$(mktemp)"
 sed \

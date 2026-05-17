@@ -15,7 +15,7 @@ RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ReadWritePaths=/var/lib/9router /opt/9router /home/router9
+ReadWritePaths=/var/lib/9router /opt/9router
 
 [Install]
 WantedBy=multi-user.target

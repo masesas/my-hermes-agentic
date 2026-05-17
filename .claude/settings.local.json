@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__ide__getDiagnostics"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "gemini-api-docs-mcp"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '=== BEADS MEMORY RECALL ===' && bd memories \"\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '=== BEADS MEMORY RECALL (pre-compact) ===' && bd memories \"\""
+          }
+        ]
+      }
+    ]
+  },
+  "enableAllProjectMcpServers": true
+}
